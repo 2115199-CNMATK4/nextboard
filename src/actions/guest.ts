@@ -45,11 +45,9 @@ export async function persistGuestBoardAction(
   }
   if (!Array.isArray(parsed)) return { error: "Dữ liệu guest board không phải mảng." };
 
-  // Tạo board.
+  // Tạo board qua RPC (xem migration 0004) — bypass bug RLS bootstrap.
   const { data: board, error: boardErr } = await supabase
-    .from("boards")
-    .insert({ title: title || "Guest board", owner_id: user.id })
-    .select("id")
+    .rpc("create_board", { p_title: title || "Guest board" })
     .single<{ id: string }>();
   if (boardErr || !board) {
     return { error: boardErr?.message ?? "Không tạo được board." };

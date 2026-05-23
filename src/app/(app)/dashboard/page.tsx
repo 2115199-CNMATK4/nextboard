@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { getCurrentProfile } from "@/lib/auth/session";
+import { listMyBoards } from "@/lib/queries/boards";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { DeviceBadge } from "@/components/layout/device-badge";
+import { BoardCard } from "@/components/board/board-card";
+import { CreateBoardForm } from "@/components/board/create-board-form";
 
 type SearchParams = Promise<{ guest_saved?: string }>;
 
@@ -10,9 +13,9 @@ export default async function DashboardPage({
 }: {
   searchParams: SearchParams;
 }) {
-  // requireProfile() đã chạy ở (app)/layout.tsx → page chỉ cần đọc.
   const profile = (await getCurrentProfile())!;
   const { guest_saved } = await searchParams;
+  const boards = await listMyBoards(profile.id);
 
   return (
     <main className="flex flex-1 flex-col px-6 py-10">
@@ -34,7 +37,7 @@ export default async function DashboardPage({
       {guest_saved ? (
         <div className="mx-auto mt-6 w-full max-w-5xl">
           <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300">
-            Đã lưu guest board ({guest_saved}) vào tài khoản của bạn. Vào{" "}
+            Đã lưu guest board vào tài khoản. Vào{" "}
             <Link
               href={`/boards/${guest_saved}`}
               className="font-medium underline-offset-4 hover:underline"
@@ -47,11 +50,43 @@ export default async function DashboardPage({
       ) : null}
 
       <section className="mx-auto mt-10 w-full max-w-5xl">
-        <div className="rounded-2xl border border-dashed border-zinc-300 dark:border-zinc-800 p-10 text-center">
-          <p className="text-sm text-zinc-500">
-            Dashboard CRUD board sẽ được triển khai ở Phase 6.
-          </p>
+        <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
+          Tạo board mới
+        </h2>
+        <div className="mt-3">
+          <CreateBoardForm />
         </div>
+      </section>
+
+      <section className="mx-auto mt-10 w-full max-w-5xl">
+        <div className="flex items-baseline justify-between">
+          <h2 className="text-sm font-medium uppercase tracking-wider text-zinc-500">
+            Board của bạn
+          </h2>
+          <span className="text-xs text-zinc-400">{boards.length} board</span>
+        </div>
+
+        {boards.length === 0 ? (
+          <div className="mt-3 rounded-2xl border border-dashed border-zinc-300 p-10 text-center text-sm text-zinc-500 dark:border-zinc-800">
+            Bạn chưa có board nào. Tạo board mới ở trên hoặc{" "}
+            <Link href="/guest" className="font-medium text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-100">
+              thử guest mode
+            </Link>
+            .
+          </div>
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {boards.map((b) => (
+              <BoardCard
+                key={b.id}
+                id={b.id}
+                title={b.title}
+                role={b.role}
+                updatedAt={b.updated_at}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
