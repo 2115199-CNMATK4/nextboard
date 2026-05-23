@@ -29,6 +29,7 @@ export interface BoardStageProps {
   onSelect: (id: string | null) => void;
   onChange: (next: BoardObject[] | ((prev: BoardObject[]) => BoardObject[])) => void;
   onToolReset?: () => void;
+  readOnly?: boolean;
 }
 
 type DraftShape =
@@ -49,6 +50,7 @@ export function BoardStage({
   onSelect,
   onChange,
   onToolReset,
+  readOnly = false,
 }: BoardStageProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -71,6 +73,7 @@ export function BoardStage({
 
   // Delete phím tắt.
   useEffect(() => {
+    if (readOnly) return;
     function handler(e: KeyboardEvent) {
       if (!selectedId) return;
       if (e.key === "Delete" || e.key === "Backspace") {
@@ -85,7 +88,7 @@ export function BoardStage({
     }
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [selectedId, onChange, onSelect]);
+  }, [selectedId, onChange, onSelect, readOnly]);
 
   // ---------------------------------------------------------------
   // Mouse handlers
@@ -98,6 +101,7 @@ export function BoardStage({
   }
 
   function onStageMouseDown(e: Konva.KonvaEventObject<MouseEvent>) {
+    if (readOnly) return;
     const pos = pointerPos(e);
     if (!pos) return;
 
@@ -200,8 +204,11 @@ export function BoardStage({
   // ---------------------------------------------------------------
   function renderShape(obj: BoardObject) {
     const isSelected = obj.id === selectedId;
-    const draggable = tool === "select";
-    const onClick = () => tool === "select" && onSelect(obj.id);
+    const draggable = !readOnly && tool === "select";
+    const onClick = () => {
+      if (readOnly) return;
+      if (tool === "select") onSelect(obj.id);
+    };
 
     switch (obj.type) {
       case "rect":

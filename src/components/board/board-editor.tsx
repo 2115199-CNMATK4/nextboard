@@ -28,14 +28,23 @@ export interface BoardEditorProps {
   onChange: (next: BoardObject[] | ((prev: BoardObject[]) => BoardObject[])) => void;
   topSlot?: React.ReactNode;
   rightSlot?: React.ReactNode;
+  readOnly?: boolean;
 }
 
-export function BoardEditor({ objects, onChange, topSlot, rightSlot }: BoardEditorProps) {
+export function BoardEditor({
+  objects,
+  onChange,
+  topSlot,
+  rightSlot,
+  readOnly = false,
+}: BoardEditorProps) {
   const [tool, setTool] = useState<ToolMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  const effectiveTool: ToolMode = readOnly ? "select" : tool;
+
   function deleteSelected() {
-    if (!selectedId) return;
+    if (readOnly || !selectedId) return;
     onChange((prev) => prev.filter((o) => o.id !== selectedId));
     setSelectedId(null);
   }
@@ -44,12 +53,13 @@ export function BoardEditor({ objects, onChange, topSlot, rightSlot }: BoardEdit
     <div className="relative flex-1 overflow-hidden bg-zinc-50 dark:bg-zinc-950">
       {/* Canvas */}
       <BoardStage
-        tool={tool}
+        tool={effectiveTool}
         objects={objects}
         selectedId={selectedId}
         onSelect={setSelectedId}
         onChange={onChange}
         onToolReset={() => setTool("select")}
+        readOnly={readOnly}
       />
 
       {/* Top slot (title bar + save buttons) */}
@@ -59,15 +69,17 @@ export function BoardEditor({ objects, onChange, topSlot, rightSlot }: BoardEdit
         </div>
       ) : null}
 
-      {/* Toolbar bên trái */}
-      <div className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2">
-        <BoardToolbar
-          tool={tool}
-          onToolChange={setTool}
-          onDeleteSelected={deleteSelected}
-          canDelete={!!selectedId}
-        />
-      </div>
+      {/* Toolbar bên trái — ẩn ở chế độ read-only. */}
+      {!readOnly ? (
+        <div className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2">
+          <BoardToolbar
+            tool={tool}
+            onToolChange={setTool}
+            onDeleteSelected={deleteSelected}
+            canDelete={!!selectedId}
+          />
+        </div>
+      ) : null}
 
       {/* Right slot (presence panel sau này) */}
       {rightSlot ? (
