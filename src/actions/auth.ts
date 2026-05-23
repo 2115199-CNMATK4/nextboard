@@ -17,12 +17,20 @@ function validateEmail(email: string) {
 // ---------------------------------------------------------------------
 // Login
 // ---------------------------------------------------------------------
+function safeNext(value: string | null | undefined): string {
+  if (!value) return "/dashboard";
+  // Chỉ cho phép path tương đối (chặn open-redirect).
+  if (!value.startsWith("/") || value.startsWith("//")) return "/dashboard";
+  return value;
+}
+
 export async function loginAction(
   _prev: AuthFormState,
   formData: FormData
 ): Promise<AuthFormState> {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  const next = safeNext(String(formData.get("next") ?? ""));
 
   if (!validateEmail(email)) return { error: "Email không hợp lệ.", email };
   if (password.length < 6)
@@ -47,7 +55,7 @@ export async function loginAction(
     redirect("/disabled");
   }
 
-  redirect("/dashboard");
+  redirect(next);
 }
 
 // ---------------------------------------------------------------------
@@ -60,6 +68,7 @@ export async function registerAction(
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const displayName = String(formData.get("display_name") ?? "").trim();
+  const next = safeNext(String(formData.get("next") ?? ""));
 
   if (!validateEmail(email)) return { error: "Email không hợp lệ.", email };
   if (password.length < 6)
@@ -83,10 +92,10 @@ export async function registerAction(
     email,
     password,
   });
-  if (signIn.user) redirect("/dashboard");
+  if (signIn.user) redirect(next);
 
   // Nếu cần xác nhận email, đưa về login với hint.
-  redirect("/login?registered=1");
+  redirect(`/login?registered=1${next !== "/dashboard" ? `&next=${encodeURIComponent(next)}` : ""}`);
 }
 
 // ---------------------------------------------------------------------

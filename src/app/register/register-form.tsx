@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerAction, type AuthFormState } from "@/actions/auth";
 
-export function RegisterForm() {
+export function RegisterForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(
     registerAction,
     null
@@ -14,6 +14,8 @@ export function RegisterForm() {
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      {next ? <input type="hidden" name="next" value={next} /> : null}
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="display_name">Tên hiển thị</Label>
         <Input

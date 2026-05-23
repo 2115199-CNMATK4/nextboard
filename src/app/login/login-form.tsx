@@ -6,7 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction, type AuthFormState } from "@/actions/auth";
 
-export function LoginForm({ initialEmail }: { initialEmail?: string }) {
+export function LoginForm({
+  initialEmail,
+  next,
+}: {
+  initialEmail?: string;
+  next?: string;
+}) {
   const [state, action, pending] = useActionState<AuthFormState, FormData>(
     loginAction,
     null
@@ -14,6 +20,8 @@ export function LoginForm({ initialEmail }: { initialEmail?: string }) {
 
   return (
     <form action={action} className="flex flex-col gap-4">
+      {next ? <input type="hidden" name="next" value={next} /> : null}
+
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
         <Input

@@ -2,14 +2,14 @@ import Link from "next/link";
 import { AuthShell } from "@/components/layout/auth-shell";
 import { LoginForm } from "./login-form";
 
-type SearchParams = Promise<{ registered?: string; redirect?: string }>;
+type SearchParams = Promise<{ registered?: string; next?: string }>;
 
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: SearchParams;
 }) {
-  const { registered } = await searchParams;
+  const { registered, next } = await searchParams;
 
   return (
     <AuthShell
@@ -18,7 +18,10 @@ export default async function LoginPage({
       footer={
         <span className="text-zinc-500">
           Chưa có tài khoản?{" "}
-          <Link href="/register" className="font-medium text-zinc-900 dark:text-zinc-100">
+          <Link
+            href={next ? `/register?next=${encodeURIComponent(next)}` : "/register"}
+            className="font-medium text-zinc-900 dark:text-zinc-100"
+          >
             Đăng ký
           </Link>
         </span>
@@ -29,7 +32,7 @@ export default async function LoginPage({
           Đăng ký thành công. Vui lòng xác nhận email rồi đăng nhập.
         </p>
       ) : null}
-      <LoginForm />
+      <LoginForm next={next} />
     </AuthShell>
   );
 }
