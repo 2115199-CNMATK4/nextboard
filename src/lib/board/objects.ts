@@ -30,6 +30,7 @@ export interface StyleChange {
   stroke?: string;
   strokeWidth?: number;
   fontSize?: number;
+  background?: string | null; // null = clear background
 }
 
 const NOW = () => new Date().toISOString();
@@ -54,12 +55,25 @@ export function createTextObject(
   x: number,
   y: number,
   text = "Double click to edit",
-  fill = "#0a0a0a"
+  fill = "#0a0a0a",
+  fontSize = 18,
+  width?: number,
+  height?: number,
+  background?: string
 ): BoardObject {
   return {
     ...baseFields(),
     type: "text",
-    data: { x, y, text, fontSize: 18, fill } satisfies TextObjectData,
+    data: {
+      x,
+      y,
+      text,
+      fontSize,
+      fill,
+      ...(width !== undefined ? { width } : {}),
+      ...(height !== undefined ? { height } : {}),
+      ...(background !== undefined ? { background } : {}),
+    } satisfies TextObjectData,
   };
 }
 
@@ -182,7 +196,7 @@ export function getBounds(obj: BoardObject) {
         x: obj.data.x,
         y: obj.data.y,
         width: obj.data.width ?? 120,
-        height: obj.data.fontSize * 1.4,
+        height: obj.data.height ?? obj.data.fontSize * 1.4,
       };
     case "line":
     case "arrow": {
@@ -335,16 +349,16 @@ export function updateObjectStyle(
         },
         updated_at: now,
       };
-    case "text":
-      return {
-        ...obj,
-        data: {
-          ...obj.data,
-          ...(style.fill !== undefined && { fill: style.fill }),
-          ...(style.fontSize !== undefined && { fontSize: style.fontSize }),
-        },
-        updated_at: now,
-      };
+    case "text": {
+      const data = { ...obj.data };
+      if (style.fill !== undefined) data.fill = style.fill;
+      if (style.fontSize !== undefined) data.fontSize = style.fontSize;
+      if (style.background !== undefined) {
+        if (style.background === null) delete data.background;
+        else data.background = style.background;
+      }
+      return { ...obj, data, updated_at: now };
+    }
     case "line":
       return {
         ...obj,
@@ -425,6 +439,10 @@ export function normalizeObjectTransform(
           x: nodeX,
           y: nodeY,
           width: Math.max(20, (obj.data.width ?? 120) * scaleX),
+          height:
+            obj.data.height !== undefined
+              ? Math.max(16, obj.data.height * scaleY)
+              : undefined,
           fontSize: Math.max(8, Math.round(obj.data.fontSize * scaleY)),
         },
         updated_at: now,

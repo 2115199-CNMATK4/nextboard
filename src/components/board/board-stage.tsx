@@ -9,7 +9,7 @@
 // =====================================================================
 
 import { useEffect, useRef, useState } from "react";
-import { Stage, Layer, Rect, Ellipse, Line, Arrow, Text, Transformer } from "react-konva";
+import { Stage, Layer, Rect, Ellipse, Line, Arrow, Text, Group, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { BoardObject } from "@/types/database";
 import type { RemoteStroke } from "@/lib/realtime/types";
@@ -55,6 +55,7 @@ export interface BoardStageProps {
 type DraftShape =
   | { kind: "rect" | "ellipse"; x0: number; y0: number; x1: number; y1: number }
   | { kind: "line" | "arrow"; x0: number; y0: number; x1: number; y1: number }
+  | { kind: "text"; x0: number; y0: number; x1: number; y1: number }
   | { kind: "freehand"; points: [number, number][] };
 
 function flattenPoints(points: [number, number][]): number[] {
@@ -453,17 +454,11 @@ export function BoardStage({
       return;
     }
 
+    drawing.current = true;
     if (tool === "text") {
-      // Create text and immediately enter inline edit mode
-      const obj = createTextObject(pos.x, pos.y, "Text", strokeColor);
-      onChange((prev) => [...prev, obj]);
-      onSelect(obj.id);
-      onRequestTextEdit?.(obj.id);
-      onToolReset?.();
+      setDraft({ kind: "text", x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
       return;
     }
-
-    drawing.current = true;
     if (tool === "freehand") {
       const sid = crypto.randomUUID();
       strokeIdRef.current = sid;
@@ -586,6 +581,31 @@ export function BoardStage({
       const obj = createArrowObject(draft.x0, draft.y0, draft.x1, draft.y1, strokeColor, strokeWidth);
       onChange((prev) => [...prev, obj]);
       onSelect(obj.id);
+    } else if (draft.kind === "text") {
+      const x = Math.min(draft.x0, draft.x1);
+      const y = Math.min(draft.y0, draft.y1);
+      const w = Math.abs(draft.x1 - draft.x0);
+      const h = Math.abs(draft.y1 - draft.y0);
+      // Small drag (click-ish) → default-sized frame at click point.
+      // Larger drag → use frame dimensions; fontSize derived from height.
+      const isTinyDrag = w < 10 || h < 10;
+      const frameW = isTinyDrag ? 200 : w;
+      const frameH = isTinyDrag ? 40 : h;
+      const frameX = isTinyDrag ? draft.x0 : x;
+      const frameY = isTinyDrag ? draft.y0 : y;
+      const fontSize = isTinyDrag ? 18 : Math.max(10, Math.round(frameH * 0.6));
+      const obj = createTextObject(
+        frameX,
+        frameY,
+        "Text",
+        strokeColor,
+        fontSize,
+        frameW,
+        frameH
+      );
+      onChange((prev) => [...prev, obj]);
+      onSelect(obj.id);
+      onRequestTextEdit?.(obj.id);
     }
 
     setDraft(null);
@@ -713,17 +733,16 @@ export function BoardStage({
             }}
           />
         );
-      case "text":
+      case "text": {
+        const tw = obj.data.width;
+        const th = obj.data.height;
+        const bg = obj.data.background;
         return (
-          <Text
+          <Group
             key={obj.id}
             id={obj.id}
             x={obj.data.x}
             y={obj.data.y}
-            width={obj.data.width}
-            text={obj.data.text}
-            fontSize={obj.data.fontSize}
-            fill={obj.data.fill}
             opacity={shapeOpacity}
             draggable={draggable}
             onClick={onClick}
@@ -744,8 +763,31 @@ export function BoardStage({
               handleDragEnd(obj.id, dx, dy);
               void onLockRelease?.(obj.id);
             }}
-          />
+          >
+            {/* Background / hit-area rect — always present so Group has a
+                stable bounding box (transformer + select work even when text
+                is empty or short). Filled when background set; otherwise
+                near-transparent so hit-test still fires. */}
+            {tw !== undefined && th !== undefined && (
+              <Rect
+                width={tw}
+                height={th}
+                fill={bg ?? "rgba(0,0,0,0.001)"}
+                cornerRadius={bg ? 4 : 0}
+              />
+            )}
+            <Text
+              x={0}
+              y={0}
+              width={tw}
+              text={obj.data.text}
+              fontSize={obj.data.fontSize}
+              fill={obj.data.fill}
+              padding={bg ? 4 : 0}
+            />
+          </Group>
         );
+      }
       case "line":
         return (
           <Line
@@ -932,6 +974,24 @@ export function BoardStage({
     }
     if (draft.kind === "arrow") {
       return <Arrow points={[draft.x0, draft.y0, draft.x1, draft.y1]} stroke={strokeColor} fill={strokeColor} strokeWidth={strokeWidth} dash={[4, 4]} />;
+    }
+    if (draft.kind === "text") {
+      const x = Math.min(draft.x0, draft.x1);
+      const y = Math.min(draft.y0, draft.y1);
+      const w = Math.abs(draft.x1 - draft.x0);
+      const h = Math.abs(draft.y1 - draft.y0);
+      return (
+        <Rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          stroke={strokeColor}
+          strokeWidth={1}
+          dash={[4, 4]}
+          fill="rgba(59, 130, 246, 0.05)"
+        />
+      );
     }
     return null;
   }

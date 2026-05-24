@@ -70,9 +70,11 @@ export interface TextObjectData {
   x: number;
   y: number;
   width?: number;
+  height?: number;
   text: string;
   fontSize: number;
   fill: string;
+  background?: string;
 }
 
 export interface RectObjectData {

@@ -35,6 +35,12 @@ export function TextEditorOverlay({
   );
   const width = Math.max(60, (object.data.width ?? 120) * viewport.scale);
   const fontSize = Math.max(8, object.data.fontSize * viewport.scale);
+  const height =
+    object.data.height !== undefined
+      ? Math.max(fontSize * 1.5, object.data.height * viewport.scale)
+      : undefined;
+  const hasBg = !!object.data.background;
+  const padding = hasBg ? 4 * viewport.scale : 0;
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {
@@ -42,16 +48,13 @@ export function TextEditorOverlay({
       onCancel();
       return;
     }
-    e.stopPropagation(); // prevent canvas keyboard handlers
+    e.stopPropagation();
   }
 
   function handleBlur(e: React.FocusEvent<HTMLTextAreaElement>) {
     const text = e.currentTarget.value.trim();
-    if (text) {
-      onSave(text);
-    } else {
-      onCancel();
-    }
+    if (text) onSave(text);
+    else onCancel();
   }
 
   return (
@@ -65,18 +68,19 @@ export function TextEditorOverlay({
         left,
         top,
         width,
+        height: height ?? "auto",
         minHeight: fontSize * 1.5,
         fontSize,
         fontFamily: "inherit",
         color: object.data.fill,
-        background: "rgba(255,255,255,0.9)",
+        background: object.data.background ?? "rgba(255,255,255,0.95)",
         border: "2px dashed #3b82f6",
-        borderRadius: 4,
+        borderRadius: hasBg ? 4 : 4,
         outline: "none",
-        padding: "2px 4px",
+        padding,
         margin: 0,
         resize: "none",
-        overflow: "hidden",
+        overflow: "auto",
         lineHeight: 1.4,
         zIndex: 40,
         boxSizing: "border-box",
