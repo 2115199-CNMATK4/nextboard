@@ -20,12 +20,11 @@ export interface BoardClientProps {
 // =====================================================================
 // BoardClient — kết hợp useBoardSync (DB) và useBoardRealtime (channel).
 //
-// Circular dependency được xử lý bằng 2 stable refs:
-//   broadcastRef  — useBoardSync dùng để emit sau khi detect local diff.
-//   applyRemoteRef — useBoardRealtime dùng để apply changes từ remote.
+// Circular dependency giữa hai hooks được xử lý bằng stable refs.
 //
-// Cả hai ref được cập nhật synchronously sau mỗi render nên luôn trỏ
-// đúng function mới nhất mà không cần thêm vào dep array.
+// Freehand objects KHÔNG broadcast qua object:create; chúng đã được
+// broadcast qua stroke:end. Điều này tránh duplicate khi Tab B nhận
+// cả stroke:end lẫn object:create cho cùng một object.
 // =====================================================================
 export function BoardClient({
   boardId,
@@ -36,7 +35,7 @@ export function BoardClient({
   const { profile, device } = useDevice();
   const readOnly = role === "viewer";
 
-  // --- Circular dep refs ---
+  // Stable refs để break circular dependency giữa useBoardSync và useBoardRealtime
   const broadcastRef = useRef({
     create: (_obj: BoardObject) => {},
     update: (_obj: BoardObject) => {},
@@ -50,25 +49,36 @@ export function BoardClient({
     initialObjects,
     {
       onLocalChange: ({ creates, updates, deletes }) => {
-        creates.forEach((o) => broadcastRef.current.create(o));
+        creates.forEach((o) => {
+          // Freehand creates đã broadcast qua stroke:end → skip để tránh duplicate
+          if (o.type === "freehand") return;
+          broadcastRef.current.create(o);
+        });
         updates.forEach((o) => broadcastRef.current.update(o));
         deletes.forEach((id) => broadcastRef.current.delete(id));
       },
     }
   );
 
-  // Keep applyRemote ref in sync after each render.
   applyRemoteRef.current = applyRemote;
 
   // Realtime channel
-  const { remoteCursors, broadcastObjectCreate, broadcastObjectUpdate, broadcastObjectDelete, broadcastCursor } =
-    useBoardRealtime(boardId, device, profile, {
-      onObjectCreate: (obj) => applyRemoteRef.current({ creates: [obj] }),
-      onObjectUpdate: (obj) => applyRemoteRef.current({ updates: [obj] }),
-      onObjectDelete: (id) => applyRemoteRef.current({ deletes: [id] }),
-    });
+  const {
+    remoteCursors,
+    remoteStrokes,
+    broadcastObjectCreate,
+    broadcastObjectUpdate,
+    broadcastObjectDelete,
+    broadcastCursor,
+    broadcastStrokeStart,
+    broadcastStrokePoints,
+    broadcastStrokeEnd,
+  } = useBoardRealtime(boardId, device, profile, {
+    onObjectCreate: (obj) => applyRemoteRef.current({ creates: [obj] }),
+    onObjectUpdate: (obj) => applyRemoteRef.current({ updates: [obj] }),
+    onObjectDelete: (id) => applyRemoteRef.current({ deletes: [id] }),
+  });
 
-  // Keep broadcast ref in sync after each render.
   broadcastRef.current = {
     create: broadcastObjectCreate,
     update: broadcastObjectUpdate,
@@ -81,7 +91,11 @@ export function BoardClient({
       onChange={setObjects}
       readOnly={readOnly}
       remoteCursors={remoteCursors}
+      remoteStrokes={remoteStrokes}
       onCursorMove={readOnly ? undefined : broadcastCursor}
+      onStrokeStart={readOnly ? undefined : broadcastStrokeStart}
+      onStrokePoints={readOnly ? undefined : broadcastStrokePoints}
+      onStrokeEnd={readOnly ? undefined : broadcastStrokeEnd}
       topSlot={
         <div className="glass-panel flex items-center gap-3 px-3 py-2">
           <Link

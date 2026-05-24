@@ -11,6 +11,10 @@ import type {
   ObjectDeletePayload,
   ObjectUpdatePayload,
   RemoteCursor,
+  RemoteStroke,
+  StrokeEndPayload,
+  StrokePointsPayload,
+  StrokeStartPayload,
 } from "@/lib/realtime/types";
 import type { BoardObject, DeviceProfile, Profile } from "@/types/database";
 
@@ -25,9 +29,9 @@ interface RealtimeOptions {
 //   • Broadcast object:create/update/delete (emit + receive).
 //   • Broadcast cursor:update (throttled).
 //   • Presence track (device_profile_id, user, device, color).
+//   • Stroke batch: stroke:start / stroke:points / stroke:end (Phase 10).
 //
 // Self-echo được lọc bằng field `_from` trong mỗi payload.
-// Remote objects được apply qua callbacks để caller tự update state.
 // =====================================================================
 export function useBoardRealtime(
   boardId: string,
@@ -37,16 +41,15 @@ export function useBoardRealtime(
 ) {
   const [remoteCursors, setRemoteCursors] = useState<RemoteCursor[]>([]);
   const [presence, setPresence] = useState<BoardPresenceState[]>([]);
+  // Map strokeId → RemoteStroke cho O(1) update
+  const [remoteStrokesMap, setRemoteStrokesMap] = useState<Map<string, RemoteStroke>>(new Map());
 
   const channelRef = useRef<RealtimeChannel | null>(null);
-  // Stable ref so callbacks trong useEffect không stale.
   const optionsRef = useRef(options);
   optionsRef.current = options;
 
-  // Throttle cursor broadcast — chỉ update ref, không trigger re-render.
   const lastCursorTs = useRef(0);
 
-  // Stable self info — dùng trong broadcast callbacks mà không recreate.
   const selfRef = useRef({
     deviceId: deviceProfile?.id ?? "",
     displayName: profile.display_name,
@@ -69,6 +72,7 @@ export function useBoardRealtime(
     });
 
     channel
+      // --- Object events ---
       .on("broadcast", { event: "object:create" }, ({ payload }: { payload: ObjectCreatePayload }) => {
         if (!payload || payload._from === myId) return;
         optionsRef.current.onObjectCreate(payload.object);
@@ -81,6 +85,7 @@ export function useBoardRealtime(
         if (!payload || payload._from === myId) return;
         optionsRef.current.onObjectDelete(payload.id);
       })
+      // --- Cursor ---
       .on("broadcast", { event: "cursor:update" }, ({ payload }: { payload: CursorUpdatePayload }) => {
         if (!payload || payload._from === myId) return;
         setRemoteCursors((prev) => {
@@ -97,6 +102,45 @@ export function useBoardRealtime(
           ];
         });
       })
+      // --- Stroke batch (Phase 10) ---
+      .on("broadcast", { event: "stroke:start" }, ({ payload }: { payload: StrokeStartPayload }) => {
+        if (!payload || payload._from === myId) return;
+        setRemoteStrokesMap((prev) => {
+          const next = new Map(prev);
+          next.set(payload.strokeId, {
+            strokeId: payload.strokeId,
+            deviceId: payload._from,
+            points: [[payload.x, payload.y]],
+            stroke: payload.stroke,
+            strokeWidth: payload.strokeWidth,
+          });
+          return next;
+        });
+      })
+      .on("broadcast", { event: "stroke:points" }, ({ payload }: { payload: StrokePointsPayload }) => {
+        if (!payload || payload._from === myId) return;
+        setRemoteStrokesMap((prev) => {
+          const existing = prev.get(payload.strokeId);
+          if (!existing) return prev;
+          const next = new Map(prev);
+          next.set(payload.strokeId, {
+            ...existing,
+            points: [...existing.points, ...payload.points],
+          });
+          return next;
+        });
+      })
+      .on("broadcast", { event: "stroke:end" }, ({ payload }: { payload: StrokeEndPayload }) => {
+        if (!payload || payload._from === myId) return;
+        // Xóa remote draft, thêm object hoàn chỉnh
+        setRemoteStrokesMap((prev) => {
+          const next = new Map(prev);
+          next.delete(payload.strokeId);
+          return next;
+        });
+        optionsRef.current.onObjectCreate(payload.object);
+      })
+      // --- Presence ---
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<BoardPresenceState>();
         const all = Object.values(state).flat();
@@ -108,6 +152,14 @@ export function useBoardRealtime(
         const leftIds = new Set(leftPresences.map((p) => p.device_profile_id));
         setPresence((prev) => prev.filter((p) => !leftIds.has(p.device_profile_id)));
         setRemoteCursors((prev) => prev.filter((c) => !leftIds.has(c.deviceId)));
+        // Xóa stroke draft của device đã rời
+        setRemoteStrokesMap((prev) => {
+          const next = new Map(prev);
+          for (const [id, rs] of prev) {
+            if (leftIds.has(rs.deviceId)) next.delete(id);
+          }
+          return next;
+        });
       })
       .subscribe(async (status) => {
         if (status !== "SUBSCRIBED") return;
@@ -126,6 +178,8 @@ export function useBoardRealtime(
       channelRef.current = null;
     };
   }, [boardId, deviceProfile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // --- Broadcast helpers (tất cả stable, dùng selfRef) ---
 
   const broadcastObjectCreate = useCallback((obj: BoardObject) => {
     channelRef.current?.send({
@@ -151,7 +205,6 @@ export function useBoardRealtime(
     });
   }, []);
 
-  // Throttle bằng ref thay vì debounce để không block UI.
   const broadcastCursor = useCallback((x: number, y: number) => {
     const now = Date.now();
     if (now - lastCursorTs.current < realtimeConfig.cursorIntervalMs) return;
@@ -169,12 +222,43 @@ export function useBoardRealtime(
     });
   }, []);
 
+  const broadcastStrokeStart = useCallback(
+    (strokeId: string, x: number, y: number, stroke: string, strokeWidth: number) => {
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "stroke:start",
+        payload: { _from: selfRef.current.deviceId, strokeId, x, y, stroke, strokeWidth } satisfies StrokeStartPayload,
+      });
+    },
+    []
+  );
+
+  const broadcastStrokePoints = useCallback((strokeId: string, points: [number, number][]) => {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "stroke:points",
+      payload: { _from: selfRef.current.deviceId, strokeId, points } satisfies StrokePointsPayload,
+    });
+  }, []);
+
+  const broadcastStrokeEnd = useCallback((strokeId: string, obj: BoardObject) => {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "stroke:end",
+      payload: { _from: selfRef.current.deviceId, strokeId, object: obj } satisfies StrokeEndPayload,
+    });
+  }, []);
+
   return {
     remoteCursors,
+    remoteStrokes: [...remoteStrokesMap.values()],
     presence,
     broadcastObjectCreate,
     broadcastObjectUpdate,
     broadcastObjectDelete,
     broadcastCursor,
+    broadcastStrokeStart,
+    broadcastStrokePoints,
+    broadcastStrokeEnd,
   };
 }

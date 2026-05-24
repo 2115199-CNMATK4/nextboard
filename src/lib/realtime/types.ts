@@ -46,3 +46,35 @@ export interface RemotePatch {
   updates?: BoardObject[];
   deletes?: string[];
 }
+
+// --- Phase 10: stroke batch ---
+
+export interface StrokeStartPayload {
+  _from: string;
+  strokeId: string;
+  x: number;
+  y: number;
+  stroke: string;
+  strokeWidth: number;
+}
+
+export interface StrokePointsPayload {
+  _from: string;
+  strokeId: string;
+  points: [number, number][];
+}
+
+export interface StrokeEndPayload {
+  _from: string;
+  strokeId: string;
+  object: BoardObject;
+}
+
+// Stroke đang được vẽ realtime bởi remote user (chưa commit vào DB).
+export interface RemoteStroke {
+  strokeId: string;
+  deviceId: string;
+  points: [number, number][];
+  stroke: string;
+  strokeWidth: number;
+}

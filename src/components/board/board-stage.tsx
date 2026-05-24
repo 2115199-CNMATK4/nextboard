@@ -11,6 +11,8 @@ import { useEffect, useRef, useState } from "react";
 import { Stage, Layer, Rect, Ellipse, Line, Arrow, Text } from "react-konva";
 import type Konva from "konva";
 import type { BoardObject } from "@/types/database";
+import type { RemoteStroke } from "@/lib/realtime/types";
+import { realtimeConfig } from "@/lib/realtime/config";
 import {
   createArrowObject,
   createEllipseObject,
@@ -30,6 +32,11 @@ export interface BoardStageProps {
   onChange: (next: BoardObject[] | ((prev: BoardObject[]) => BoardObject[])) => void;
   onToolReset?: () => void;
   onCursorMove?: (x: number, y: number) => void;
+  // Phase 10: stroke batch callbacks
+  onStrokeStart?: (strokeId: string, x: number, y: number, stroke: string, strokeWidth: number) => void;
+  onStrokePoints?: (strokeId: string, points: [number, number][]) => void;
+  onStrokeEnd?: (strokeId: string, obj: BoardObject) => void;
+  remoteStrokes?: RemoteStroke[];
   readOnly?: boolean;
   strokeColor?: string;
   strokeWidth?: number;
@@ -54,6 +61,10 @@ export function BoardStage({
   onChange,
   onToolReset,
   onCursorMove,
+  onStrokeStart,
+  onStrokePoints,
+  onStrokeEnd,
+  remoteStrokes = [],
   readOnly = false,
   strokeColor = "#0a0a0a",
   strokeWidth = 3,
@@ -62,6 +73,11 @@ export function BoardStage({
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [draft, setDraft] = useState<DraftShape | null>(null);
   const drawing = useRef(false);
+
+  // Phase 10: stroke batch state
+  const strokeIdRef = useRef<string | null>(null);
+  const pendingPointsRef = useRef<[number, number][]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Resize observer — Konva Stage cần kích thước pixel cố định.
   useEffect(() => {
@@ -77,13 +93,19 @@ export function BoardStage({
     return () => ro.disconnect();
   }, []);
 
+  // Dọn flush timer khi unmount (phòng trường hợp unmount giữa chừng vẽ).
+  useEffect(() => {
+    return () => {
+      if (flushTimerRef.current) clearInterval(flushTimerRef.current);
+    };
+  }, []);
+
   // Delete phím tắt.
   useEffect(() => {
     if (readOnly) return;
     function handler(e: KeyboardEvent) {
       if (!selectedId) return;
       if (e.key === "Delete" || e.key === "Backspace") {
-        // Tránh xóa khi đang focus input.
         const t = e.target as HTMLElement | null;
         if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable))
           return;
@@ -111,7 +133,6 @@ export function BoardStage({
     const pos = pointerPos(e);
     if (!pos) return;
 
-    // Click vào nền (Stage) trong mode select → bỏ chọn.
     const clickedOnStage = e.target === e.target.getStage();
     if (tool === "select") {
       if (clickedOnStage) onSelect(null);
@@ -131,7 +152,19 @@ export function BoardStage({
 
     drawing.current = true;
     if (tool === "freehand") {
+      const sid = crypto.randomUUID();
+      strokeIdRef.current = sid;
+      pendingPointsRef.current = [[pos.x, pos.y]];
       setDraft({ kind: "freehand", points: [[pos.x, pos.y]] });
+      onStrokeStart?.(sid, pos.x, pos.y, strokeColor, strokeWidth);
+
+      // Batch timer: flush pending points mỗi drawingBatchIntervalMs ms.
+      flushTimerRef.current = setInterval(() => {
+        const pts = pendingPointsRef.current.splice(0);
+        if (pts.length > 0 && strokeIdRef.current) {
+          onStrokePoints?.(strokeIdRef.current, pts);
+        }
+      }, realtimeConfig.drawingBatchIntervalMs);
     } else if (tool === "rect" || tool === "ellipse") {
       setDraft({ kind: tool, x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
     } else if (tool === "line" || tool === "arrow") {
@@ -145,6 +178,7 @@ export function BoardStage({
     if (!drawing.current || !draft) return;
     if (!pos) return;
     if (draft.kind === "freehand") {
+      pendingPointsRef.current.push([pos.x, pos.y]);
       setDraft({ kind: "freehand", points: [...draft.points, [pos.x, pos.y]] });
     } else {
       setDraft({ ...draft, x1: pos.x, y1: pos.y });
@@ -160,11 +194,28 @@ export function BoardStage({
     drawing.current = false;
 
     if (draft.kind === "freehand") {
+      // Dừng batch timer
+      if (flushTimerRef.current) {
+        clearInterval(flushTimerRef.current);
+        flushTimerRef.current = null;
+      }
       if (draft.points.length >= 2) {
-        const obj = createFreehandObject(draft.points, strokeColor, strokeWidth);
+        const obj = createFreehandObject(
+          draft.points,
+          strokeColor,
+          strokeWidth,
+          strokeIdRef.current ?? undefined
+        );
+        // Flush points còn lại trong buffer
+        const remaining = pendingPointsRef.current.splice(0);
+        if (remaining.length > 0) {
+          onStrokePoints?.(obj.id, remaining);
+        }
+        onStrokeEnd?.(obj.id, obj);
         onChange((prev) => [...prev, obj]);
         onSelect(obj.id);
       }
+      strokeIdRef.current = null;
     } else if (draft.kind === "rect") {
       const x = Math.min(draft.x0, draft.x1);
       const y = Math.min(draft.y0, draft.y1);
@@ -359,7 +410,24 @@ export function BoardStage({
     }
   }
 
-  // Render draft (preview) layer.
+  // Render remote strokes (in-progress của các remote user).
+  function renderRemoteStrokes() {
+    return remoteStrokes.map((rs) => (
+      <Line
+        key={rs.strokeId}
+        points={flattenPoints(rs.points)}
+        stroke={rs.stroke}
+        strokeWidth={rs.strokeWidth}
+        tension={0.4}
+        lineCap="round"
+        lineJoin="round"
+        opacity={0.85}
+        listening={false}
+      />
+    ));
+  }
+
+  // Render draft (preview layer của local user).
   function renderDraft() {
     if (!draft) return null;
     if (draft.kind === "freehand") {
@@ -412,6 +480,7 @@ export function BoardStage({
           style={{ cursor: tool === "select" ? "default" : "crosshair" }}
         >
           <Layer>{objects.map(renderShape)}</Layer>
+          <Layer listening={false}>{renderRemoteStrokes()}</Layer>
           <Layer listening={false}>{renderDraft()}</Layer>
         </Stage>
       ) : null}

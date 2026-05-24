@@ -8,7 +8,7 @@
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { BoardObject } from "@/types/database";
-import type { RemoteCursor } from "@/lib/realtime/types";
+import type { RemoteCursor, RemoteStroke } from "@/lib/realtime/types";
 import { BoardToolbar } from "./toolbar";
 import { RemoteCursors } from "./remote-cursors";
 import type { ToolMode } from "@/lib/board/objects";
@@ -32,7 +32,11 @@ export interface BoardEditorProps {
   rightSlot?: React.ReactNode;
   readOnly?: boolean;
   remoteCursors?: RemoteCursor[];
+  remoteStrokes?: RemoteStroke[];
   onCursorMove?: (x: number, y: number) => void;
+  onStrokeStart?: (strokeId: string, x: number, y: number, stroke: string, strokeWidth: number) => void;
+  onStrokePoints?: (strokeId: string, points: [number, number][]) => void;
+  onStrokeEnd?: (strokeId: string, obj: BoardObject) => void;
 }
 
 export function BoardEditor({
@@ -42,7 +46,11 @@ export function BoardEditor({
   rightSlot,
   readOnly = false,
   remoteCursors = [],
+  remoteStrokes = [],
   onCursorMove,
+  onStrokeStart,
+  onStrokePoints,
+  onStrokeEnd,
 }: BoardEditorProps) {
   const [tool, setTool] = useState<ToolMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -68,6 +76,10 @@ export function BoardEditor({
         onChange={onChange}
         onToolReset={() => setTool("select")}
         onCursorMove={onCursorMove}
+        onStrokeStart={onStrokeStart}
+        onStrokePoints={onStrokePoints}
+        onStrokeEnd={onStrokeEnd}
+        remoteStrokes={remoteStrokes}
         readOnly={readOnly}
         strokeColor={strokeColor}
         strokeWidth={strokeWidth}

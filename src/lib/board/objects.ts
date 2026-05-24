@@ -140,10 +140,11 @@ export function createArrowObject(
 export function createFreehandObject(
   points: [number, number][],
   stroke = "#0a0a0a",
-  strokeWidth = 3
+  strokeWidth = 3,
+  id?: string
 ): BoardObject {
   return {
-    ...baseFields(),
+    ...baseFields(id),
     type: "freehand",
     data: { points, stroke, strokeWidth } satisfies FreehandObjectData,
   };
