@@ -1,13 +1,15 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { BoardEditor } from "./board-editor";
 import { SaveIndicator } from "./save-indicator";
 import { useBoardSync } from "@/hooks/use-board-sync";
 import { useBoardRealtime } from "@/hooks/use-board-realtime";
+import { useObjectLock } from "@/hooks/use-object-lock";
 import { useDevice } from "@/components/layout/device-provider";
+import { realtimeConfig } from "@/lib/realtime/config";
 import type { BoardObject, BoardRole } from "@/types/database";
 
 export interface BoardClientProps {
@@ -18,13 +20,15 @@ export interface BoardClientProps {
 }
 
 // =====================================================================
-// BoardClient — kết hợp useBoardSync (DB) và useBoardRealtime (channel).
+// BoardClient — kết hợp useBoardSync, useBoardRealtime, useObjectLock.
 //
-// Circular dependency giữa hai hooks được xử lý bằng stable refs.
+// Lock flow:
+//   onDragStart → handleLockAcquire → acquireLockAction (RPC) + broadcast
+//   onDragEnd   → handleLockRelease → releaseLockAction (RPC) + broadcast
 //
-// Freehand objects KHÔNG broadcast qua object:create; chúng đã được
-// broadcast qua stroke:end. Điều này tránh duplicate khi Tab B nhận
-// cả stroke:end lẫn object:create cho cùng một object.
+// Remote lock:
+//   lock:acquire → applyRemote({ updates: [objWithLock] })
+//   lock:release → applyRemote({ updates: [objWithoutLock] })
 // =====================================================================
 export function BoardClient({
   boardId,
@@ -35,23 +39,22 @@ export function BoardClient({
   const { profile, device } = useDevice();
   const readOnly = role === "viewer";
 
-  // Stable refs để break circular dependency giữa useBoardSync và useBoardRealtime
+  // Stable refs để break circular dependency
   const broadcastRef = useRef({
     create: (_obj: BoardObject) => {},
     update: (_obj: BoardObject) => {},
     delete: (_id: string) => {},
   });
   const applyRemoteRef = useRef((_patch: Parameters<ReturnType<typeof useBoardSync>["applyRemote"]>[0]) => {});
+  const objectsRef = useRef<BoardObject[]>(initialObjects);
 
-  // DB persistence + local state
   const { objects, setObjects, status, applyRemote } = useBoardSync(
     boardId,
     initialObjects,
     {
       onLocalChange: ({ creates, updates, deletes }) => {
         creates.forEach((o) => {
-          // Freehand creates đã broadcast qua stroke:end → skip để tránh duplicate
-          if (o.type === "freehand") return;
+          if (o.type === "freehand") return; // handled via stroke:end
           broadcastRef.current.create(o);
         });
         updates.forEach((o) => broadcastRef.current.update(o));
@@ -61,8 +64,10 @@ export function BoardClient({
   );
 
   applyRemoteRef.current = applyRemote;
+  objectsRef.current = objects;
 
-  // Realtime channel
+  const lockHook = useObjectLock(boardId, device?.id ?? null);
+
   const {
     remoteCursors,
     remoteStrokes,
@@ -73,10 +78,36 @@ export function BoardClient({
     broadcastStrokeStart,
     broadcastStrokePoints,
     broadcastStrokeEnd,
-  } = useBoardRealtime(boardId, device, profile, {
+    broadcastLockAcquire,
+    broadcastLockRelease,
+  } = useBoardRealtime(boardId, device ?? null, profile, {
     onObjectCreate: (obj) => applyRemoteRef.current({ creates: [obj] }),
     onObjectUpdate: (obj) => applyRemoteRef.current({ updates: [obj] }),
     onObjectDelete: (id) => applyRemoteRef.current({ deletes: [id] }),
+    onLockAcquire: ({ objectId, lockedByUserId, lockedByDeviceId, lockedUntil }) => {
+      const obj = objectsRef.current.find((o) => o.id === objectId);
+      if (!obj) return;
+      applyRemoteRef.current({
+        updates: [{
+          ...obj,
+          locked_by_user_id: lockedByUserId,
+          locked_by_device_id: lockedByDeviceId,
+          locked_until: lockedUntil,
+        }],
+      });
+    },
+    onLockRelease: (objectId) => {
+      const obj = objectsRef.current.find((o) => o.id === objectId);
+      if (!obj) return;
+      applyRemoteRef.current({
+        updates: [{
+          ...obj,
+          locked_by_user_id: null,
+          locked_by_device_id: null,
+          locked_until: null,
+        }],
+      });
+    },
   });
 
   broadcastRef.current = {
@@ -84,6 +115,30 @@ export function BoardClient({
     update: broadcastObjectUpdate,
     delete: broadcastObjectDelete,
   };
+
+  const handleLockAcquire = useCallback(
+    async (objectId: string): Promise<boolean> => {
+      const ok = await lockHook.acquire(objectId);
+      if (ok && device) {
+        broadcastLockAcquire({
+          objectId,
+          lockedByUserId: profile.id,
+          lockedByDeviceId: device.id,
+          lockedUntil: new Date(Date.now() + realtimeConfig.lockDurationMs).toISOString(),
+        });
+      }
+      return ok;
+    },
+    [lockHook, device, profile.id, broadcastLockAcquire]
+  );
+
+  const handleLockRelease = useCallback(
+    async (objectId: string): Promise<void> => {
+      await lockHook.release(objectId);
+      broadcastLockRelease(objectId);
+    },
+    [lockHook, broadcastLockRelease]
+  );
 
   return (
     <BoardEditor
@@ -96,6 +151,9 @@ export function BoardClient({
       onStrokeStart={readOnly ? undefined : broadcastStrokeStart}
       onStrokePoints={readOnly ? undefined : broadcastStrokePoints}
       onStrokeEnd={readOnly ? undefined : broadcastStrokeEnd}
+      myDeviceId={device?.id}
+      onLockAcquire={readOnly ? undefined : handleLockAcquire}
+      onLockRelease={readOnly ? undefined : handleLockRelease}
       topSlot={
         <div className="glass-panel flex items-center gap-3 px-3 py-2">
           <Link

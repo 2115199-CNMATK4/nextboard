@@ -37,6 +37,9 @@ export interface BoardEditorProps {
   onStrokeStart?: (strokeId: string, x: number, y: number, stroke: string, strokeWidth: number) => void;
   onStrokePoints?: (strokeId: string, points: [number, number][]) => void;
   onStrokeEnd?: (strokeId: string, obj: BoardObject) => void;
+  myDeviceId?: string;
+  onLockAcquire?: (objectId: string) => Promise<boolean>;
+  onLockRelease?: (objectId: string) => Promise<void>;
 }
 
 export function BoardEditor({
@@ -51,6 +54,9 @@ export function BoardEditor({
   onStrokeStart,
   onStrokePoints,
   onStrokeEnd,
+  myDeviceId,
+  onLockAcquire,
+  onLockRelease,
 }: BoardEditorProps) {
   const [tool, setTool] = useState<ToolMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -80,6 +86,9 @@ export function BoardEditor({
         onStrokePoints={onStrokePoints}
         onStrokeEnd={onStrokeEnd}
         remoteStrokes={remoteStrokes}
+        myDeviceId={myDeviceId}
+        onLockAcquire={onLockAcquire}
+        onLockRelease={onLockRelease}
         readOnly={readOnly}
         strokeColor={strokeColor}
         strokeWidth={strokeWidth}

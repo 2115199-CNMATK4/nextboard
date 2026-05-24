@@ -20,6 +20,7 @@ import {
   createLineObject,
   createRectObject,
   createTextObject,
+  getBounds,
   translateObject,
   type ToolMode,
 } from "@/lib/board/objects";
@@ -37,6 +38,10 @@ export interface BoardStageProps {
   onStrokePoints?: (strokeId: string, points: [number, number][]) => void;
   onStrokeEnd?: (strokeId: string, obj: BoardObject) => void;
   remoteStrokes?: RemoteStroke[];
+  // Phase 11: lock
+  myDeviceId?: string;
+  onLockAcquire?: (objectId: string) => Promise<boolean>;
+  onLockRelease?: (objectId: string) => Promise<void>;
   readOnly?: boolean;
   strokeColor?: string;
   strokeWidth?: number;
@@ -53,6 +58,13 @@ function flattenPoints(points: [number, number][]): number[] {
   return flat;
 }
 
+// Lock hết hạn hoặc không tồn tại → coi như unlocked.
+function isLockedByOther(obj: BoardObject, myDeviceId: string | undefined): boolean {
+  if (!obj.locked_by_device_id || !obj.locked_until) return false;
+  if (obj.locked_by_device_id === myDeviceId) return false;
+  return new Date(obj.locked_until) > new Date();
+}
+
 export function BoardStage({
   tool,
   objects,
@@ -65,6 +77,9 @@ export function BoardStage({
   onStrokePoints,
   onStrokeEnd,
   remoteStrokes = [],
+  myDeviceId,
+  onLockAcquire,
+  onLockRelease,
   readOnly = false,
   strokeColor = "#0a0a0a",
   strokeWidth = 3,
@@ -262,11 +277,26 @@ export function BoardStage({
   // ---------------------------------------------------------------
   function renderShape(obj: BoardObject) {
     const isSelected = obj.id === selectedId;
-    const draggable = !readOnly && tool === "select";
+    const lockedByOther = isLockedByOther(obj, myDeviceId);
+    const draggable = !readOnly && tool === "select" && !lockedByOther;
     const onClick = () => {
       if (readOnly) return;
       if (tool === "select") onSelect(obj.id);
     };
+
+    // Drag handlers với lock acquire/release
+    function makeDragStart(node: Konva.Node, originalX: number, originalY: number) {
+      return () => {
+        if (!onLockAcquire) return;
+        onLockAcquire(obj.id).then((ok) => {
+          if (!ok) {
+            node.stopDrag?.();
+            node.position({ x: originalX, y: originalY });
+            node.getLayer()?.batchDraw();
+          }
+        });
+      };
+    }
 
     switch (obj.type) {
       case "rect":
@@ -281,14 +311,17 @@ export function BoardStage({
             fill={obj.data.fill}
             stroke={isSelected ? "#3b82f6" : obj.data.stroke ?? "#0a0a0a"}
             strokeWidth={isSelected ? 2 : obj.data.strokeWidth ?? 1}
+            opacity={lockedByOther ? 0.55 : 1}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
+            onDragStart={(e) => makeDragStart(e.target, obj.data.x, obj.data.y)()}
             onDragEnd={(e) => {
               const node = e.target;
               const dx = node.x() - obj.data.x;
               const dy = node.y() - obj.data.y;
               handleDragEnd(obj.id, dx, dy);
+              void onLockRelease?.(obj.id);
             }}
           />
         );
@@ -304,14 +337,17 @@ export function BoardStage({
             fill={obj.data.fill}
             stroke={isSelected ? "#3b82f6" : obj.data.stroke ?? "#0a0a0a"}
             strokeWidth={isSelected ? 2 : obj.data.strokeWidth ?? 1}
+            opacity={lockedByOther ? 0.55 : 1}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
+            onDragStart={(e) => makeDragStart(e.target, obj.data.x, obj.data.y)()}
             onDragEnd={(e) => {
               const node = e.target;
               const dx = node.x() - obj.data.x;
               const dy = node.y() - obj.data.y;
               handleDragEnd(obj.id, dx, dy);
+              void onLockRelease?.(obj.id);
             }}
           />
         );
@@ -325,12 +361,18 @@ export function BoardStage({
             text={obj.data.text}
             fontSize={obj.data.fontSize}
             fill={obj.data.fill}
+            opacity={lockedByOther ? 0.55 : 1}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
-            onDblClick={() => {
-              if (tool !== "select") return;
+            onDblClick={async () => {
+              if (tool !== "select" || lockedByOther) return;
+              if (onLockAcquire) {
+                const ok = await onLockAcquire(obj.id);
+                if (!ok) return;
+              }
               const next = window.prompt("Sửa text:", obj.data.text);
+              void onLockRelease?.(obj.id);
               if (next != null) {
                 onChange((prev) =>
                   prev.map((o) =>
@@ -341,11 +383,13 @@ export function BoardStage({
                 );
               }
             }}
+            onDragStart={(e) => makeDragStart(e.target, obj.data.x, obj.data.y)()}
             onDragEnd={(e) => {
               const node = e.target;
               const dx = node.x() - obj.data.x;
               const dy = node.y() - obj.data.y;
               handleDragEnd(obj.id, dx, dy);
+              void onLockRelease?.(obj.id);
             }}
           />
         );
@@ -357,13 +401,16 @@ export function BoardStage({
             points={obj.data.points}
             stroke={isSelected ? "#3b82f6" : obj.data.stroke}
             strokeWidth={isSelected ? obj.data.strokeWidth + 1 : obj.data.strokeWidth}
+            opacity={lockedByOther ? 0.55 : 1}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
+            onDragStart={(e) => makeDragStart(e.target, 0, 0)()}
             onDragEnd={(e) => {
               const node = e.target;
               handleDragEnd(obj.id, node.x(), node.y());
               node.position({ x: 0, y: 0 });
+              void onLockRelease?.(obj.id);
             }}
           />
         );
@@ -376,13 +423,16 @@ export function BoardStage({
             stroke={isSelected ? "#3b82f6" : obj.data.stroke}
             fill={isSelected ? "#3b82f6" : obj.data.stroke}
             strokeWidth={isSelected ? obj.data.strokeWidth + 1 : obj.data.strokeWidth}
+            opacity={lockedByOther ? 0.55 : 1}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
+            onDragStart={(e) => makeDragStart(e.target, 0, 0)()}
             onDragEnd={(e) => {
               const node = e.target;
               handleDragEnd(obj.id, node.x(), node.y());
               node.position({ x: 0, y: 0 });
+              void onLockRelease?.(obj.id);
             }}
           />
         );
@@ -397,17 +447,45 @@ export function BoardStage({
             tension={0.4}
             lineCap="round"
             lineJoin="round"
+            opacity={lockedByOther ? 0.55 : 1}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
+            onDragStart={(e) => makeDragStart(e.target, 0, 0)()}
             onDragEnd={(e) => {
               const node = e.target;
               handleDragEnd(obj.id, node.x(), node.y());
               node.position({ x: 0, y: 0 });
+              void onLockRelease?.(obj.id);
             }}
           />
         );
     }
+  }
+
+  // Render lock overlays cho objects bị lock bởi device khác.
+  function renderLockOverlays() {
+    return objects
+      .filter((o) => isLockedByOther(o, myDeviceId))
+      .map((o) => {
+        const b = getBounds(o);
+        const pad = 6;
+        return (
+          <Rect
+            key={`lock-${o.id}`}
+            x={b.x - pad}
+            y={b.y - pad}
+            width={b.width + pad * 2}
+            height={b.height + pad * 2}
+            stroke="#ef4444"
+            strokeWidth={1.5}
+            dash={[5, 3]}
+            fill="rgba(239, 68, 68, 0.06)"
+            cornerRadius={4}
+            listening={false}
+          />
+        );
+      });
   }
 
   // Render remote strokes (in-progress của các remote user).
@@ -480,6 +558,7 @@ export function BoardStage({
           style={{ cursor: tool === "select" ? "default" : "crosshair" }}
         >
           <Layer>{objects.map(renderShape)}</Layer>
+          <Layer listening={false}>{renderLockOverlays()}</Layer>
           <Layer listening={false}>{renderRemoteStrokes()}</Layer>
           <Layer listening={false}>{renderDraft()}</Layer>
         </Stage>

@@ -70,6 +70,21 @@ export interface StrokeEndPayload {
   object: BoardObject;
 }
 
+// --- Phase 11: object lock ---
+
+export interface LockAcquirePayload {
+  _from: string;
+  objectId: string;
+  lockedByUserId: string;
+  lockedByDeviceId: string;
+  lockedUntil: string; // ISO timestamp
+}
+
+export interface LockReleasePayload {
+  _from: string;
+  objectId: string;
+}
+
 // Stroke đang được vẽ realtime bởi remote user (chưa commit vào DB).
 export interface RemoteStroke {
   strokeId: string;

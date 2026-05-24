@@ -7,6 +7,8 @@ import { realtimeConfig } from "@/lib/realtime/config";
 import type {
   BoardPresenceState,
   CursorUpdatePayload,
+  LockAcquirePayload,
+  LockReleasePayload,
   ObjectCreatePayload,
   ObjectDeletePayload,
   ObjectUpdatePayload,
@@ -22,6 +24,8 @@ interface RealtimeOptions {
   onObjectCreate: (obj: BoardObject) => void;
   onObjectUpdate: (obj: BoardObject) => void;
   onObjectDelete: (id: string) => void;
+  onLockAcquire?: (payload: Omit<LockAcquirePayload, "_from">) => void;
+  onLockRelease?: (objectId: string) => void;
 }
 
 // =====================================================================
@@ -140,6 +144,20 @@ export function useBoardRealtime(
         });
         optionsRef.current.onObjectCreate(payload.object);
       })
+      // --- Lock (Phase 11) ---
+      .on("broadcast", { event: "lock:acquire" }, ({ payload }: { payload: LockAcquirePayload }) => {
+        if (!payload || payload._from === myId) return;
+        optionsRef.current.onLockAcquire?.({
+          objectId: payload.objectId,
+          lockedByUserId: payload.lockedByUserId,
+          lockedByDeviceId: payload.lockedByDeviceId,
+          lockedUntil: payload.lockedUntil,
+        });
+      })
+      .on("broadcast", { event: "lock:release" }, ({ payload }: { payload: LockReleasePayload }) => {
+        if (!payload || payload._from === myId) return;
+        optionsRef.current.onLockRelease?.(payload.objectId);
+      })
       // --- Presence ---
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState<BoardPresenceState>();
@@ -249,6 +267,25 @@ export function useBoardRealtime(
     });
   }, []);
 
+  const broadcastLockAcquire = useCallback(
+    (info: Omit<LockAcquirePayload, "_from">) => {
+      channelRef.current?.send({
+        type: "broadcast",
+        event: "lock:acquire",
+        payload: { _from: selfRef.current.deviceId, ...info } satisfies LockAcquirePayload,
+      });
+    },
+    []
+  );
+
+  const broadcastLockRelease = useCallback((objectId: string) => {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "lock:release",
+      payload: { _from: selfRef.current.deviceId, objectId } satisfies LockReleasePayload,
+    });
+  }, []);
+
   return {
     remoteCursors,
     remoteStrokes: [...remoteStrokesMap.values()],
@@ -260,5 +297,7 @@ export function useBoardRealtime(
     broadcastStrokeStart,
     broadcastStrokePoints,
     broadcastStrokeEnd,
+    broadcastLockAcquire,
+    broadcastLockRelease,
   };
 }
