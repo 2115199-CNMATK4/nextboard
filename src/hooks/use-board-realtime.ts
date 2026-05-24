@@ -28,6 +28,13 @@ interface RealtimeOptions {
   onLockRelease?: (objectId: string) => void;
 }
 
+export type ChannelStatus =
+  | "connecting"
+  | "connected"
+  | "reconnecting"
+  | "error"
+  | "closed";
+
 // =====================================================================
 // useBoardRealtime — subscribe channel `board:{boardId}` và quản lý:
 //   • Broadcast object:create/update/delete (emit + receive).
@@ -47,6 +54,7 @@ export function useBoardRealtime(
   const [presence, setPresence] = useState<BoardPresenceState[]>([]);
   // Map strokeId → RemoteStroke cho O(1) update
   const [remoteStrokesMap, setRemoteStrokesMap] = useState<Map<string, RemoteStroke>>(new Map());
+  const [channelStatus, setChannelStatus] = useState<ChannelStatus>("connecting");
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const optionsRef = useRef(options);
@@ -180,13 +188,19 @@ export function useBoardRealtime(
         });
       })
       .subscribe(async (status) => {
-        if (status !== "SUBSCRIBED") return;
-        await channel.track({
-          device_profile_id: deviceProfile.id,
-          user_name: profile.display_name,
-          device_name: deviceProfile.device_name,
-          color: deviceProfile.color,
-        } satisfies BoardPresenceState);
+        if (status === "SUBSCRIBED") {
+          setChannelStatus("connected");
+          await channel.track({
+            device_profile_id: deviceProfile.id,
+            user_name: profile.display_name,
+            device_name: deviceProfile.device_name,
+            color: deviceProfile.color,
+          } satisfies BoardPresenceState);
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setChannelStatus("reconnecting");
+        } else if (status === "CLOSED") {
+          setChannelStatus("closed");
+        }
       });
 
     channelRef.current = channel;
@@ -290,6 +304,7 @@ export function useBoardRealtime(
     remoteCursors,
     remoteStrokes: [...remoteStrokesMap.values()],
     presence,
+    channelStatus,
     broadcastObjectCreate,
     broadcastObjectUpdate,
     broadcastObjectDelete,

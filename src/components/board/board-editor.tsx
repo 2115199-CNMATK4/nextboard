@@ -17,6 +17,7 @@ import { RemoteCursors } from "./remote-cursors";
 import { FloatingObjectToolbar } from "./floating-toolbar";
 import { TextEditorOverlay } from "./text-editor-overlay";
 import { useViewport } from "@/hooks/use-viewport";
+import * as crypto from 'node:crypto';
 import {
   bringToFront,
   sendToBack,

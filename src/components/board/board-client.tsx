@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { BoardEditor } from "./board-editor";
 import { SaveIndicator } from "./save-indicator";
+import { ConnectionStatus } from "./connection-status";
+import { PresencePanel } from "./presence-panel";
 import { useBoardSync } from "@/hooks/use-board-sync";
 import { useBoardRealtime } from "@/hooks/use-board-realtime";
 import { useObjectLock } from "@/hooks/use-object-lock";
@@ -71,6 +73,8 @@ export function BoardClient({
   const {
     remoteCursors,
     remoteStrokes,
+    presence,
+    channelStatus,
     broadcastObjectCreate,
     broadcastObjectUpdate,
     broadcastObjectDelete,
@@ -164,17 +168,21 @@ export function BoardClient({
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div className="flex flex-col leading-tight">
-            <span className="text-sm font-semibold">{title}</span>
+          <div className="flex max-w-[40vw] flex-col leading-tight">
+            <span className="truncate text-sm font-semibold">{title}</span>
             <span className="text-[10px] uppercase tracking-wider text-zinc-500">
               {role}
               {readOnly ? " • chỉ xem" : ""}
             </span>
           </div>
-          <div className="ml-3 border-l border-zinc-300/60 pl-3 dark:border-zinc-700/60">
+          <div className="ml-2 flex items-center gap-3 border-l border-zinc-300/60 pl-3 dark:border-zinc-700/60">
             <SaveIndicator status={status} />
+            <ConnectionStatus status={channelStatus} />
           </div>
         </div>
+      }
+      rightSlot={
+        <PresencePanel members={presence} myDeviceId={device?.id} />
       }
     />
   );

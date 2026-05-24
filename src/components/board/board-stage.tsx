@@ -27,7 +27,6 @@ import {
   type ToolMode,
 } from "@/lib/board/objects";
 import { zoomViewport, type Viewport } from "@/lib/board/viewport";
-
 export interface BoardStageProps {
   tool: ToolMode;
   objects: BoardObject[];
@@ -820,12 +819,12 @@ export function BoardStage({
                 ref={transformerRef}
                 keepRatio={false}
                 rotateEnabled={false}
-                anchorSize={14 / viewport.scale}
+                anchorSize={11}
                 anchorStroke="#3b82f6"
                 anchorFill="#ffffff"
-                anchorStrokeWidth={1.5 / viewport.scale}
+                anchorStrokeWidth={3}
                 borderStroke="#3b82f6"
-                borderStrokeWidth={1.5 / viewport.scale}
+                borderStrokeWidth={3}
                 boundBoxFunc={(oldBox, newBox) => {
                   if (newBox.width < 5 || newBox.height < 5) return oldBox;
                   return newBox;
