@@ -104,7 +104,8 @@ export function createLineObject(
   y1: number,
   x2: number,
   y2: number,
-  stroke = "#0a0a0a"
+  stroke = "#0a0a0a",
+  strokeWidth = 2
 ): BoardObject {
   return {
     ...baseFields(),
@@ -112,7 +113,7 @@ export function createLineObject(
     data: {
       points: [x1, y1, x2, y2],
       stroke,
-      strokeWidth: 2,
+      strokeWidth,
     } satisfies LineObjectData,
   };
 }
@@ -122,7 +123,8 @@ export function createArrowObject(
   y1: number,
   x2: number,
   y2: number,
-  stroke = "#0a0a0a"
+  stroke = "#0a0a0a",
+  strokeWidth = 2
 ): BoardObject {
   return {
     ...baseFields(),
@@ -130,19 +132,20 @@ export function createArrowObject(
     data: {
       points: [x1, y1, x2, y2],
       stroke,
-      strokeWidth: 2,
+      strokeWidth,
     } satisfies ArrowObjectData,
   };
 }
 
 export function createFreehandObject(
   points: [number, number][],
-  stroke = "#0a0a0a"
+  stroke = "#0a0a0a",
+  strokeWidth = 3
 ): BoardObject {
   return {
     ...baseFields(),
     type: "freehand",
-    data: { points, stroke, strokeWidth: 3 } satisfies FreehandObjectData,
+    data: { points, stroke, strokeWidth } satisfies FreehandObjectData,
   };
 }
 

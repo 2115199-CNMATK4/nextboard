@@ -30,6 +30,8 @@ export interface BoardStageProps {
   onChange: (next: BoardObject[] | ((prev: BoardObject[]) => BoardObject[])) => void;
   onToolReset?: () => void;
   readOnly?: boolean;
+  strokeColor?: string;
+  strokeWidth?: number;
 }
 
 type DraftShape =
@@ -51,6 +53,8 @@ export function BoardStage({
   onChange,
   onToolReset,
   readOnly = false,
+  strokeColor = "#0a0a0a",
+  strokeWidth = 3,
 }: BoardStageProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -154,7 +158,7 @@ export function BoardStage({
 
     if (draft.kind === "freehand") {
       if (draft.points.length >= 2) {
-        const obj = createFreehandObject(draft.points);
+        const obj = createFreehandObject(draft.points, strokeColor, strokeWidth);
         onChange((prev) => [...prev, obj]);
         onSelect(obj.id);
       }
@@ -179,11 +183,11 @@ export function BoardStage({
         onSelect(obj.id);
       }
     } else if (draft.kind === "line") {
-      const obj = createLineObject(draft.x0, draft.y0, draft.x1, draft.y1);
+      const obj = createLineObject(draft.x0, draft.y0, draft.x1, draft.y1, strokeColor, strokeWidth);
       onChange((prev) => [...prev, obj]);
       onSelect(obj.id);
     } else if (draft.kind === "arrow") {
-      const obj = createArrowObject(draft.x0, draft.y0, draft.x1, draft.y1);
+      const obj = createArrowObject(draft.x0, draft.y0, draft.x1, draft.y1, strokeColor, strokeWidth);
       onChange((prev) => [...prev, obj]);
       onSelect(obj.id);
     }
@@ -359,8 +363,8 @@ export function BoardStage({
       return (
         <Line
           points={flattenPoints(draft.points)}
-          stroke="#0a0a0a"
-          strokeWidth={3}
+          stroke={strokeColor}
+          strokeWidth={strokeWidth}
           tension={0.4}
           lineCap="round"
           lineJoin="round"
@@ -372,20 +376,20 @@ export function BoardStage({
       const y = Math.min(draft.y0, draft.y1);
       const w = Math.abs(draft.x1 - draft.x0);
       const h = Math.abs(draft.y1 - draft.y0);
-      return <Rect x={x} y={y} width={w} height={h} fill="#fde68a" stroke="#0a0a0a" strokeWidth={1} dash={[4, 4]} />;
+      return <Rect x={x} y={y} width={w} height={h} fill="#fde68a" stroke={strokeColor} strokeWidth={1} dash={[4, 4]} />;
     }
     if (draft.kind === "ellipse") {
       const cx = (draft.x0 + draft.x1) / 2;
       const cy = (draft.y0 + draft.y1) / 2;
       const rx = Math.abs(draft.x1 - draft.x0) / 2;
       const ry = Math.abs(draft.y1 - draft.y0) / 2;
-      return <Ellipse x={cx} y={cy} radiusX={rx} radiusY={ry} fill="#bae6fd" stroke="#0a0a0a" strokeWidth={1} dash={[4, 4]} />;
+      return <Ellipse x={cx} y={cy} radiusX={rx} radiusY={ry} fill="#bae6fd" stroke={strokeColor} strokeWidth={1} dash={[4, 4]} />;
     }
     if (draft.kind === "line") {
-      return <Line points={[draft.x0, draft.y0, draft.x1, draft.y1]} stroke="#0a0a0a" strokeWidth={2} dash={[4, 4]} />;
+      return <Line points={[draft.x0, draft.y0, draft.x1, draft.y1]} stroke={strokeColor} strokeWidth={strokeWidth} dash={[4, 4]} />;
     }
     if (draft.kind === "arrow") {
-      return <Arrow points={[draft.x0, draft.y0, draft.x1, draft.y1]} stroke="#0a0a0a" fill="#0a0a0a" strokeWidth={2} dash={[4, 4]} />;
+      return <Arrow points={[draft.x0, draft.y0, draft.x1, draft.y1]} stroke={strokeColor} fill={strokeColor} strokeWidth={strokeWidth} dash={[4, 4]} />;
     }
     return null;
   }

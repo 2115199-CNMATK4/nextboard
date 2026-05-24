@@ -40,6 +40,8 @@ export function BoardEditor({
 }: BoardEditorProps) {
   const [tool, setTool] = useState<ToolMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [strokeColor, setStrokeColor] = useState("#0a0a0a");
+  const [strokeWidth, setStrokeWidth] = useState(3);
 
   const effectiveTool: ToolMode = readOnly ? "select" : tool;
 
@@ -60,6 +62,8 @@ export function BoardEditor({
         onChange={onChange}
         onToolReset={() => setTool("select")}
         readOnly={readOnly}
+        strokeColor={strokeColor}
+        strokeWidth={strokeWidth}
       />
 
       {/* Top slot (title bar + save buttons) */}
@@ -75,6 +79,10 @@ export function BoardEditor({
           <BoardToolbar
             tool={tool}
             onToolChange={setTool}
+            strokeColor={strokeColor}
+            onStrokeColorChange={setStrokeColor}
+            strokeWidth={strokeWidth}
+            onStrokeWidthChange={setStrokeWidth}
             onDeleteSelected={deleteSelected}
             canDelete={!!selectedId}
           />
