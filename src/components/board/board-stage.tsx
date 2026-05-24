@@ -29,6 +29,7 @@ export interface BoardStageProps {
   onSelect: (id: string | null) => void;
   onChange: (next: BoardObject[] | ((prev: BoardObject[]) => BoardObject[])) => void;
   onToolReset?: () => void;
+  onCursorMove?: (x: number, y: number) => void;
   readOnly?: boolean;
   strokeColor?: string;
   strokeWidth?: number;
@@ -52,6 +53,7 @@ export function BoardStage({
   onSelect,
   onChange,
   onToolReset,
+  onCursorMove,
   readOnly = false,
   strokeColor = "#0a0a0a",
   strokeWidth = 3,
@@ -138,8 +140,9 @@ export function BoardStage({
   }
 
   function onStageMouseMove(e: Konva.KonvaEventObject<MouseEvent>) {
-    if (!drawing.current || !draft) return;
     const pos = pointerPos(e);
+    if (pos) onCursorMove?.(pos.x, pos.y);
+    if (!drawing.current || !draft) return;
     if (!pos) return;
     if (draft.kind === "freehand") {
       setDraft({ kind: "freehand", points: [...draft.points, [pos.x, pos.y]] });

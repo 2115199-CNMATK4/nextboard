@@ -2,13 +2,15 @@
 
 // =====================================================================
 // BoardEditor — controlled wrapper. Tái dùng cho guest (Phase 4) và
-// board thật (Phase 7). Konva stage được lazy-loaded để tránh SSR.
+// board thật (Phase 7+). Konva stage được lazy-loaded để tránh SSR.
 // =====================================================================
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
 import type { BoardObject } from "@/types/database";
+import type { RemoteCursor } from "@/lib/realtime/types";
 import { BoardToolbar } from "./toolbar";
+import { RemoteCursors } from "./remote-cursors";
 import type { ToolMode } from "@/lib/board/objects";
 
 const BoardStage = dynamic(
@@ -29,6 +31,8 @@ export interface BoardEditorProps {
   topSlot?: React.ReactNode;
   rightSlot?: React.ReactNode;
   readOnly?: boolean;
+  remoteCursors?: RemoteCursor[];
+  onCursorMove?: (x: number, y: number) => void;
 }
 
 export function BoardEditor({
@@ -37,6 +41,8 @@ export function BoardEditor({
   topSlot,
   rightSlot,
   readOnly = false,
+  remoteCursors = [],
+  onCursorMove,
 }: BoardEditorProps) {
   const [tool, setTool] = useState<ToolMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -61,10 +67,16 @@ export function BoardEditor({
         onSelect={setSelectedId}
         onChange={onChange}
         onToolReset={() => setTool("select")}
+        onCursorMove={onCursorMove}
         readOnly={readOnly}
         strokeColor={strokeColor}
         strokeWidth={strokeWidth}
       />
+
+      {/* Remote cursors overlay — pointer-events-none ở wrapper, render bên trong canvas */}
+      <div className="pointer-events-none absolute inset-0 z-20">
+        <RemoteCursors cursors={remoteCursors} />
+      </div>
 
       {/* Top slot (title bar + save buttons) */}
       {topSlot ? (
