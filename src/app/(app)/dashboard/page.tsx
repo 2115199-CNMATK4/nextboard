@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { UserCog } from "lucide-react";
-import { getCurrentProfile } from "@/lib/auth/session";
+import { UserCog, ShieldCheck } from "lucide-react";
+import { getCurrentProfile, isAdmin } from "@/lib/auth/session";
 import { listMyBoards } from "@/lib/queries/boards";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { DeviceBadge } from "@/components/layout/device-badge";
@@ -16,7 +16,10 @@ export default async function DashboardPage({
 }) {
   const profile = (await getCurrentProfile())!;
   const { guest_saved } = await searchParams;
-  const boards = await listMyBoards(profile.id);
+  const [boards, admin] = await Promise.all([
+    listMyBoards(profile.id),
+    isAdmin(profile.id),
+  ]);
 
   return (
     <main className="flex flex-1 flex-col px-6 py-10">
@@ -31,6 +34,16 @@ export default async function DashboardPage({
         </div>
         <div className="flex items-center gap-3">
           <DeviceBadge />
+          {admin ? (
+            <Link
+              href="/admin"
+              title="Admin dashboard"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 text-sm text-amber-700 transition-colors hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300 dark:hover:bg-amber-900/40"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          ) : null}
           <Link
             href="/account"
             title="Tài khoản"
