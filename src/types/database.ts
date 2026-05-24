@@ -55,6 +55,7 @@ export interface BoardObjectBase<T extends BoardObjectType, D> {
   board_id: string;
   type: T;
   data: D;
+  z_index: number;
   version: number;
   locked_by_user_id: string | null;
   locked_by_device_id: string | null;

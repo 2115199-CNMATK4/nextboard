@@ -142,6 +142,7 @@ export function BoardClient({
 
   return (
     <BoardEditor
+      boardId={boardId}
       objects={objects}
       onChange={setObjects}
       readOnly={readOnly}

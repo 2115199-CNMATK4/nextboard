@@ -25,12 +25,20 @@ export const TOOL_TYPES = [
 export type ToolType = (typeof TOOL_TYPES)[number];
 export type ToolMode = "select" | ToolType;
 
+export interface StyleChange {
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  fontSize?: number;
+}
+
 const NOW = () => new Date().toISOString();
 
 function baseFields(id?: string) {
   return {
     id: id ?? crypto.randomUUID(),
     board_id: "",
+    z_index: 0,
     version: 1,
     locked_by_user_id: null,
     locked_by_device_id: null,
@@ -273,4 +281,193 @@ export function isToolType(value: string): value is ToolType {
 
 export function isBoardObjectType(value: string): value is BoardObjectType {
   return (TOOL_TYPES as readonly string[]).includes(value);
+}
+
+// ---------------------------------------------------------------
+// Z-index ordering
+// ---------------------------------------------------------------
+
+export function bringToFront(objects: BoardObject[], id: string): BoardObject[] {
+  const maxZ = objects.reduce((m, o) => Math.max(m, o.z_index ?? 0), 0);
+  return objects.map((o) =>
+    o.id === id ? { ...o, z_index: maxZ + 1, updated_at: NOW() } : o
+  );
+}
+
+export function sendToBack(objects: BoardObject[], id: string): BoardObject[] {
+  const minZ = objects.reduce((m, o) => Math.min(m, o.z_index ?? 0), 0);
+  return objects.map((o) =>
+    o.id === id ? { ...o, z_index: minZ - 1, updated_at: NOW() } : o
+  );
+}
+
+// ---------------------------------------------------------------
+// Style change — shared action for static + floating toolbar
+// ---------------------------------------------------------------
+
+export function updateObjectStyle(
+  obj: BoardObject,
+  style: StyleChange
+): BoardObject {
+  const now = NOW();
+  switch (obj.type) {
+    case "rect":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          ...(style.fill !== undefined && { fill: style.fill }),
+          ...(style.stroke !== undefined && { stroke: style.stroke }),
+          ...(style.strokeWidth !== undefined && { strokeWidth: style.strokeWidth }),
+        },
+        updated_at: now,
+      };
+    case "ellipse":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          ...(style.fill !== undefined && { fill: style.fill }),
+          ...(style.stroke !== undefined && { stroke: style.stroke }),
+          ...(style.strokeWidth !== undefined && { strokeWidth: style.strokeWidth }),
+        },
+        updated_at: now,
+      };
+    case "text":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          ...(style.fill !== undefined && { fill: style.fill }),
+          ...(style.fontSize !== undefined && { fontSize: style.fontSize }),
+        },
+        updated_at: now,
+      };
+    case "line":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          ...(style.stroke !== undefined && { stroke: style.stroke }),
+          ...(style.strokeWidth !== undefined && { strokeWidth: style.strokeWidth }),
+        },
+        updated_at: now,
+      };
+    case "arrow":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          ...(style.stroke !== undefined && { stroke: style.stroke }),
+          ...(style.strokeWidth !== undefined && { strokeWidth: style.strokeWidth }),
+        },
+        updated_at: now,
+      };
+    case "freehand":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          ...(style.stroke !== undefined && { stroke: style.stroke }),
+          ...(style.strokeWidth !== undefined && { strokeWidth: style.strokeWidth }),
+        },
+        updated_at: now,
+      };
+  }
+}
+
+// ---------------------------------------------------------------
+// Normalize Konva Transformer output → clean data (Phase 11.3)
+// Call after onTransformEnd. nodeX/Y are node.x()/y() after transform;
+// scaleX/Y are node.scaleX()/scaleY(). Resets scale to 1 in caller.
+// ---------------------------------------------------------------
+
+export function normalizeObjectTransform(
+  obj: BoardObject,
+  nodeX: number,
+  nodeY: number,
+  scaleX: number,
+  scaleY: number
+): BoardObject {
+  const now = NOW();
+  switch (obj.type) {
+    case "rect":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          x: nodeX,
+          y: nodeY,
+          width: Math.max(1, obj.data.width * scaleX),
+          height: Math.max(1, obj.data.height * scaleY),
+        },
+        updated_at: now,
+      };
+    case "ellipse":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          x: nodeX,
+          y: nodeY,
+          radiusX: Math.max(1, obj.data.radiusX * scaleX),
+          radiusY: Math.max(1, obj.data.radiusY * scaleY),
+        },
+        updated_at: now,
+      };
+    case "text":
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          x: nodeX,
+          y: nodeY,
+          width: Math.max(20, (obj.data.width ?? 120) * scaleX),
+          fontSize: Math.max(8, Math.round(obj.data.fontSize * scaleY)),
+        },
+        updated_at: now,
+      };
+    case "line": {
+      const [x1, y1, x2, y2] = obj.data.points;
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          points: [
+            x1 * scaleX + nodeX,
+            y1 * scaleY + nodeY,
+            x2 * scaleX + nodeX,
+            y2 * scaleY + nodeY,
+          ] as [number, number, number, number],
+        },
+        updated_at: now,
+      };
+    }
+    case "arrow": {
+      const [x1, y1, x2, y2] = obj.data.points;
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          points: [
+            x1 * scaleX + nodeX,
+            y1 * scaleY + nodeY,
+            x2 * scaleX + nodeX,
+            y2 * scaleY + nodeY,
+          ] as [number, number, number, number],
+        },
+        updated_at: now,
+      };
+    }
+    case "freehand": {
+      const pts = obj.data.points.map(
+        ([px, py]) => [px * scaleX + nodeX, py * scaleY + nodeY] as [number, number]
+      );
+      return {
+        ...obj,
+        data: { ...obj.data, points: pts },
+        updated_at: now,
+      };
+    }
+  }
 }
