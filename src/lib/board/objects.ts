@@ -23,7 +23,7 @@ export const TOOL_TYPES = [
   "freehand",
 ] as const;
 export type ToolType = (typeof TOOL_TYPES)[number];
-export type ToolMode = "select" | ToolType;
+export type ToolMode = "select" | "eraser" | ToolType;
 
 export interface StyleChange {
   fill?: string;

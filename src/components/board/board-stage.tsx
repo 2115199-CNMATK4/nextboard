@@ -121,6 +121,15 @@ export function BoardStage({
   const pendingPointsRef = useRef<[number, number][]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Eraser tool: drag-to-delete with fade countdown
+  const eraserActiveRef = useRef(false);
+  const eraserPendingMap = useRef<Map<string, number>>(new Map());
+  const eraserLoopRef = useRef<number | null>(null);
+  // Opacity map populated by rAF tick — rendered shapes read from this state
+  // (keeps render pure: no performance.now() / ref access during render).
+  const [eraserOpacityMap, setEraserOpacityMap] = useState<Record<string, number>>({});
+  const ERASER_FADE_MS = 300;
+
   // Resize observer
   useEffect(() => {
     if (!containerRef.current) return;
@@ -135,10 +144,11 @@ export function BoardStage({
     return () => ro.disconnect();
   }, []);
 
-  // Cleanup flush timer on unmount
+  // Cleanup flush timer + eraser loop on unmount
   useEffect(() => {
     return () => {
       if (flushTimerRef.current) clearInterval(flushTimerRef.current);
+      if (eraserLoopRef.current != null) cancelAnimationFrame(eraserLoopRef.current);
     };
   }, []);
 
@@ -194,7 +204,7 @@ export function BoardStage({
     const stage = stageRef.current;
     if (!tr || !stage) return;
 
-    if (!selectedId || readOnly) {
+    if (!selectedId || readOnly || tool !== "select") {
       tr.nodes([]);
       tr.getLayer()?.batchDraw();
       return;
@@ -212,7 +222,7 @@ export function BoardStage({
     } else {
       tr.nodes([]);
     }
-  }, [selectedId, objects, myDeviceId, readOnly]);
+  }, [selectedId, objects, myDeviceId, readOnly, tool]);
 
   // ---------------------------------------------------------------
   // Pointer position helper — returns canvas coordinates via
@@ -274,6 +284,88 @@ export function BoardStage({
       flushTimerRef.current = null;
     }
   }
+
+  // ---------------------------------------------------------------
+  // Eraser tool: drag-to-delete with fade countdown.
+  // - mousedown + pointer on shape → mark pending (start time = now)
+  // - hover over more shapes → mark each pending
+  // - rAF loop fades opacity; when elapsed >= ERASER_FADE_MS → delete
+  // - mouseup mid-countdown → cancel all pending, restore opacity
+  // ---------------------------------------------------------------
+  function startEraserLoop() {
+    if (eraserLoopRef.current != null) return;
+    const tick = () => {
+      const now = performance.now();
+      const toDelete: string[] = [];
+      const next: Record<string, number> = {};
+      eraserPendingMap.current.forEach((startTime, id) => {
+        const elapsed = now - startTime;
+        if (elapsed >= ERASER_FADE_MS) {
+          toDelete.push(id);
+        } else {
+          next[id] = Math.max(0, 1 - elapsed / ERASER_FADE_MS);
+        }
+      });
+      if (toDelete.length > 0) {
+        onChange((prev) => prev.filter((o) => !toDelete.includes(o.id)));
+        if (selectedId && toDelete.includes(selectedId)) onSelect(null);
+        toDelete.forEach((id) => eraserPendingMap.current.delete(id));
+      }
+      setEraserOpacityMap(next);
+      eraserLoopRef.current = requestAnimationFrame(tick);
+    };
+    eraserLoopRef.current = requestAnimationFrame(tick);
+  }
+
+  function stopEraserLoop() {
+    if (eraserLoopRef.current != null) {
+      cancelAnimationFrame(eraserLoopRef.current);
+      eraserLoopRef.current = null;
+    }
+  }
+
+  function cancelEraser() {
+    eraserActiveRef.current = false;
+    eraserPendingMap.current.clear();
+    stopEraserLoop();
+    setEraserOpacityMap({});
+  }
+
+  function pickEraserTarget() {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const pointer = stage.getPointerPosition();
+    if (!pointer) return;
+    const node = stage.getIntersection(pointer);
+    if (!node) return;
+    const id = node.id();
+    if (!id) return;
+    if (eraserPendingMap.current.has(id)) return;
+    const obj = objects.find((o) => o.id === id);
+    if (!obj) return;
+    if (isLockedByOther(obj, myDeviceId)) return;
+    eraserPendingMap.current.set(id, performance.now());
+  }
+
+  // Eraser: cancel if pointer is released outside stage, or if tool changes
+  useEffect(() => {
+    if (tool !== "eraser") {
+      if (eraserActiveRef.current) cancelEraser();
+      return;
+    }
+    function onUp() {
+      if (eraserActiveRef.current) cancelEraser();
+    }
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchend", onUp);
+    window.addEventListener("touchcancel", onUp);
+    return () => {
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchend", onUp);
+      window.removeEventListener("touchcancel", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool]);
 
   function onStageTouchStart(e: Konva.KonvaEventObject<TouchEvent>) {
     const touches = e.evt.touches;
@@ -346,6 +438,13 @@ export function BoardStage({
     const pos = pointerPos(e);
     if (!pos) return;
 
+    if (tool === "eraser") {
+      eraserActiveRef.current = true;
+      pickEraserTarget();
+      startEraserLoop();
+      return;
+    }
+
     const clickedOnStage = e.target === e.target.getStage();
     if (tool === "select") {
       if (clickedOnStage) onSelect(null);
@@ -398,6 +497,12 @@ export function BoardStage({
 
     const pos = pointerPos(e); // canvas coords
     if (pos) onCursorMove?.(pos.x, pos.y);
+
+    if (tool === "eraser" && eraserActiveRef.current) {
+      pickEraserTarget();
+      return;
+    }
+
     if (!drawing.current || !draft) return;
     if (!pos) return;
     if (draft.kind === "freehand") {
@@ -413,6 +518,13 @@ export function BoardStage({
     if (isPanningRef.current) {
       isPanningRef.current = false;
       panStartRef.current = null;
+      return;
+    }
+
+    // Eraser release → cancel pending (mid-countdown shapes restore;
+    // already-deleted ones from earlier ticks stay deleted)
+    if (eraserActiveRef.current) {
+      cancelEraser();
       return;
     }
 
@@ -531,6 +643,7 @@ export function BoardStage({
       if (readOnly) return;
       if (tool === "select") onSelect(obj.id);
     };
+    const shapeOpacity = (lockedByOther ? 0.55 : 1) * (eraserOpacityMap[obj.id] ?? 1);
 
     function makeDragStart(node: Konva.Node, originalX: number, originalY: number) {
       return () => {
@@ -558,7 +671,7 @@ export function BoardStage({
             fill={obj.data.fill}
             stroke={isSelected ? "#3b82f6" : (obj.data.stroke ?? "#0a0a0a")}
             strokeWidth={isSelected ? 2 : (obj.data.strokeWidth ?? 1)}
-            opacity={lockedByOther ? 0.55 : 1}
+            opacity={shapeOpacity}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
@@ -584,7 +697,7 @@ export function BoardStage({
             fill={obj.data.fill}
             stroke={isSelected ? "#3b82f6" : (obj.data.stroke ?? "#0a0a0a")}
             strokeWidth={isSelected ? 2 : (obj.data.strokeWidth ?? 1)}
-            opacity={lockedByOther ? 0.55 : 1}
+            opacity={shapeOpacity}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
@@ -609,7 +722,7 @@ export function BoardStage({
             text={obj.data.text}
             fontSize={obj.data.fontSize}
             fill={obj.data.fill}
-            opacity={lockedByOther ? 0.55 : 1}
+            opacity={shapeOpacity}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
@@ -639,7 +752,7 @@ export function BoardStage({
             points={obj.data.points}
             stroke={isSelected ? "#3b82f6" : obj.data.stroke}
             strokeWidth={isSelected ? obj.data.strokeWidth + 1 : obj.data.strokeWidth}
-            opacity={lockedByOther ? 0.55 : 1}
+            opacity={shapeOpacity}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
@@ -661,7 +774,7 @@ export function BoardStage({
             stroke={isSelected ? "#3b82f6" : obj.data.stroke}
             fill={isSelected ? "#3b82f6" : obj.data.stroke}
             strokeWidth={isSelected ? obj.data.strokeWidth + 1 : obj.data.strokeWidth}
-            opacity={lockedByOther ? 0.55 : 1}
+            opacity={shapeOpacity}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
@@ -685,7 +798,7 @@ export function BoardStage({
             tension={0.4}
             lineCap="round"
             lineJoin="round"
-            opacity={lockedByOther ? 0.55 : 1}
+            opacity={shapeOpacity}
             draggable={draggable}
             onClick={onClick}
             onTap={onClick}
@@ -778,10 +891,15 @@ export function BoardStage({
     return null;
   }
 
+  const ERASER_CURSOR =
+    "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='white' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21'/><path d='M22 21H7'/><path d='m5 11 9 9'/></svg>\") 4 20, auto";
+
   const cursorStyle = isPanningRef.current
     ? "grabbing"
     : spacePressed
     ? "grab"
+    : tool === "eraser"
+    ? ERASER_CURSOR
     : tool === "select"
     ? "default"
     : "crosshair";

@@ -188,7 +188,7 @@ export function BoardEditor({
       </div>
 
       {/* Floating object toolbar */}
-      {selectedObject && !readOnly && !editingTextId ? (
+      {selectedObject && !readOnly && !editingTextId && tool === "select" ? (
         <FloatingObjectToolbar
           selectedObject={selectedObject}
           viewport={viewport}

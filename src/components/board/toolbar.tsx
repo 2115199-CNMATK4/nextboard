@@ -8,6 +8,7 @@ import {
   Minus,
   ArrowRight,
   Pencil,
+  Eraser,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ const TOOL_BUTTONS: Array<{ mode: ToolMode; label: string; Icon: typeof MousePoi
   { mode: "line", label: "Đường thẳng", Icon: Minus },
   { mode: "arrow", label: "Mũi tên", Icon: ArrowRight },
   { mode: "freehand", label: "Vẽ tự do", Icon: Pencil },
+  { mode: "eraser", label: "Cục tẩy", Icon: Eraser },
 ];
 
 export const PRESET_COLORS = [
