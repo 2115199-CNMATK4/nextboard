@@ -341,7 +341,14 @@ export function BoardStage({
     if (!pointer) return;
     const node = stage.getIntersection(pointer);
     if (!node) return;
-    const id = node.id();
+    // Walk up parent chain: text objects are <Group id={obj.id}> whose children (Rect/Text) have no id
+    let id: string | null = null;
+    let n: Konva.Node | null = node;
+    while (n && n !== (stage as unknown as Konva.Node)) {
+      const nid = n.id();
+      if (nid && objects.some((o) => o.id === nid)) { id = nid; break; }
+      n = n.getParent() as Konva.Node | null;
+    }
     if (!id) return;
     if (eraserPendingMap.current.has(id)) return;
     const obj = objects.find((o) => o.id === id);
