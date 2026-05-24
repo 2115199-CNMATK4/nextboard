@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserCog } from "lucide-react";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { listMyBoards } from "@/lib/queries/boards";
 import { LogoutButton } from "@/components/layout/logout-button";
@@ -30,6 +31,14 @@ export default async function DashboardPage({
         </div>
         <div className="flex items-center gap-3">
           <DeviceBadge />
+          <Link
+            href="/account"
+            title="Tài khoản"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-sm transition-colors hover:bg-black/5 dark:border-zinc-800 dark:hover:bg-white/5"
+          >
+            <UserCog className="h-4 w-4" />
+            <span className="hidden sm:inline">Tài khoản</span>
+          </Link>
           <LogoutButton />
         </div>
       </header>

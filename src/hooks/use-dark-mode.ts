@@ -3,24 +3,25 @@
 import { useEffect, useState } from "react";
 
 /**
- * Tracks `prefers-color-scheme: dark`. Returns `false` on first render
- * (server / pre-effect) then syncs with the media query.
+ * Returns whether `.dark` is currently applied to the document root.
+ * Source of truth = html element class, which is set by the inline pre-paint
+ * script in layout.tsx and updated by `useTheme().setTheme(...)`.
  */
-function readPrefersDark(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+function readDarkClass(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.documentElement.classList.contains("dark");
 }
 
 export function useDarkMode(): boolean {
-  const [isDark, setIsDark] = useState(readPrefersDark);
+  const [isDark, setIsDark] = useState(readDarkClass);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    function onChange(e: MediaQueryListEvent) {
-      setIsDark(e.matches);
-    }
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const html = document.documentElement;
+    const observer = new MutationObserver(() => {
+      setIsDark(html.classList.contains("dark"));
+    });
+    observer.observe(html, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
   }, []);
 
   return isDark;
