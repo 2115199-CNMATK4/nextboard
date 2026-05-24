@@ -21,6 +21,12 @@ export interface BoardClientProps {
   initialObjects: BoardObject[];
 }
 
+const ROLE_LABEL: Record<BoardRole, string> = {
+  owner: "Owner",
+  editor: "Editor",
+  viewer: "Viewer",
+};
+
 // =====================================================================
 // BoardClient — kết hợp useBoardSync, useBoardRealtime, useObjectLock.
 //
@@ -160,25 +166,23 @@ export function BoardClient({
       onLockAcquire={readOnly ? undefined : handleLockAcquire}
       onLockRelease={readOnly ? undefined : handleLockRelease}
       topSlot={
-        <div className="glass-panel flex items-center gap-3 px-3 py-2">
+        <div className="glass-panel flex items-center gap-0.5 p-1">
           <Link
             href="/dashboard"
-            title="Quay lại dashboard"
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-black/10 dark:hover:bg-white/10"
+            title="Quay lại"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div className="flex max-w-[40vw] flex-col leading-tight">
-            <span className="truncate text-sm font-semibold">{title}</span>
-            <span className="text-[10px] uppercase tracking-wider text-zinc-500">
-              {role}
-              {readOnly ? " • chỉ xem" : ""}
-            </span>
-          </div>
-          <div className="ml-2 flex items-center gap-3 border-l border-zinc-300/60 pl-3 dark:border-zinc-700/60">
-            <SaveIndicator status={status} />
-            <ConnectionStatus status={channelStatus} />
-          </div>
+          <span
+            className="min-w-0 max-w-[40vw] truncate px-1.5 text-sm font-medium md:max-w-[30vw]"
+            title={`${title} — ${ROLE_LABEL[role]}${readOnly ? " • chỉ xem" : ""}`}
+          >
+            {title}
+          </span>
+          <span className="mx-0.5 h-5 w-px shrink-0 bg-black/10 dark:bg-white/10" />
+          <SaveIndicator status={status} />
+          <ConnectionStatus status={channelStatus} />
         </div>
       }
       rightSlot={

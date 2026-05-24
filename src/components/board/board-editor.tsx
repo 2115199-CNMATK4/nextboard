@@ -17,7 +17,8 @@ import { RemoteCursors } from "./remote-cursors";
 import { FloatingObjectToolbar } from "./floating-toolbar";
 import { TextEditorOverlay } from "./text-editor-overlay";
 import { useViewport } from "@/hooks/use-viewport";
-import * as crypto from 'node:crypto';
+import { useInkColor } from "@/hooks/use-dark-mode";
+import { cn } from "@/lib/utils/cn";
 import {
   bringToFront,
   sendToBack,
@@ -25,7 +26,6 @@ import {
   type StyleChange,
   type ToolMode,
 } from "@/lib/board/objects";
-import type { Viewport } from "@/lib/board/viewport";
 
 const BoardStage = dynamic(
   () => import("./board-stage").then((m) => m.BoardStage),
@@ -74,11 +74,13 @@ export function BoardEditor({
   onLockAcquire,
   onLockRelease,
 }: BoardEditorProps) {
+  const ink = useInkColor();
   const [tool, setTool] = useState<ToolMode>("select");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [strokeColor, setStrokeColor] = useState("#0a0a0a");
+  const [strokeColor, setStrokeColor] = useState(ink);
   const [strokeWidth, setStrokeWidth] = useState(3);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [gridVisible, setGridVisible] = useState(false);
 
   const { viewport, setViewport } = useViewport(boardId);
 
@@ -180,6 +182,7 @@ export function BoardEditor({
         readOnly={readOnly}
         strokeColor={strokeColor}
         strokeWidth={strokeWidth}
+        gridVisible={gridVisible}
       />
 
       {/* Remote cursors overlay */}
@@ -196,11 +199,6 @@ export function BoardEditor({
           onSendToBack={handleSendToBack}
           onDelete={handleDeleteSelected}
           onStyleChange={handleStyleChange}
-          onEditText={
-            selectedObject.type === "text"
-              ? () => void handleRequestTextEdit(selectedObject.id)
-              : undefined
-          }
         />
       ) : null}
 
@@ -221,9 +219,15 @@ export function BoardEditor({
         </div>
       ) : null}
 
-      {/* Left toolbar */}
+      {/* Toolbar — bottom-horizontal on mobile, left-vertical on desktop */}
       {!readOnly ? (
-        <div className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2">
+        <div
+          className={cn(
+            "pointer-events-none absolute z-10",
+            "bottom-4 left-1/2 -translate-x-1/2",
+            "md:bottom-auto md:top-1/2 md:left-4 md:translate-x-0 md:-translate-y-1/2"
+          )}
+        >
           <BoardToolbar
             tool={tool}
             onToolChange={setTool}
@@ -231,8 +235,8 @@ export function BoardEditor({
             onStrokeColorChange={setStrokeColor}
             strokeWidth={strokeWidth}
             onStrokeWidthChange={setStrokeWidth}
-            onDeleteSelected={handleDeleteSelected}
-            canDelete={!!selectedId && !editingTextId}
+            gridVisible={gridVisible}
+            onGridToggle={() => setGridVisible((g) => !g)}
           />
         </div>
       ) : null}

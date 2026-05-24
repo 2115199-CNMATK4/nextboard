@@ -32,12 +32,11 @@ export function ConnectionStatus({ status }: { status: ChannelStatus }) {
   const spin = status === "connecting" || status === "reconnecting";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-xs ${COLOR[status]}`}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${COLOR[status]}`}
       aria-live="polite"
       title={LABEL[status]}
     >
-      <Icon className={`h-3.5 w-3.5 ${spin ? "animate-spin" : ""}`} />
-      <span className="hidden sm:inline">{LABEL[status]}</span>
+      <Icon className={`h-4 w-4 ${spin ? "animate-spin" : ""}`} />
     </span>
   );
 }

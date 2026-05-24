@@ -26,13 +26,14 @@ const COLOR: Record<SaveStatus, string> = {
 
 export function SaveIndicator({ status }: { status: SaveStatus }) {
   const Icon = ICON[status];
+  const pulse = status === "saving";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-xs ${COLOR[status]}`}
+      className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${COLOR[status]}`}
       aria-live="polite"
+      title={LABEL[status]}
     >
-      <Icon className="h-3.5 w-3.5" />
-      {LABEL[status]}
+      <Icon className={`h-4 w-4 ${pulse ? "animate-pulse" : ""}`} />
     </span>
   );
 }

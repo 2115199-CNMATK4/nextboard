@@ -26,7 +26,7 @@ import {
   translateObject,
   type ToolMode,
 } from "@/lib/board/objects";
-import { zoomViewport, type Viewport } from "@/lib/board/viewport";
+import { screenToCanvas, zoomViewport, type Viewport } from "@/lib/board/viewport";
 export interface BoardStageProps {
   tool: ToolMode;
   objects: BoardObject[];
@@ -49,6 +49,7 @@ export interface BoardStageProps {
   readOnly?: boolean;
   strokeColor?: string;
   strokeWidth?: number;
+  gridVisible?: boolean;
 }
 
 type DraftShape =
@@ -90,6 +91,7 @@ export function BoardStage({
   readOnly = false,
   strokeColor = "#0a0a0a",
   strokeWidth = 3,
+  gridVisible = false,
 }: BoardStageProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -453,7 +455,7 @@ export function BoardStage({
 
     if (tool === "text") {
       // Create text and immediately enter inline edit mode
-      const obj = createTextObject(pos.x, pos.y, "Text");
+      const obj = createTextObject(pos.x, pos.y, "Text", strokeColor);
       onChange((prev) => [...prev, obj]);
       onSelect(obj.id);
       onRequestTextEdit?.(obj.id);
@@ -562,7 +564,7 @@ export function BoardStage({
       const w = Math.abs(draft.x1 - draft.x0);
       const h = Math.abs(draft.y1 - draft.y0);
       if (w > 3 && h > 3) {
-        const obj = createRectObject(x, y, w, h);
+        const obj = createRectObject(x, y, w, h, undefined, strokeColor);
         onChange((prev) => [...prev, obj]);
         onSelect(obj.id);
       }
@@ -572,7 +574,7 @@ export function BoardStage({
       const rx = Math.abs(draft.x1 - draft.x0) / 2;
       const ry = Math.abs(draft.y1 - draft.y0) / 2;
       if (rx > 2 && ry > 2) {
-        const obj = createEllipseObject(cx, cy, rx, ry);
+        const obj = createEllipseObject(cx, cy, rx, ry, undefined, strokeColor);
         onChange((prev) => [...prev, obj]);
         onSelect(obj.id);
       }
@@ -814,6 +816,49 @@ export function BoardStage({
     }
   }
 
+  // Grid: lines in canvas coords every GRID_STEP; bounds computed from
+  // current viewport. Stroke width compensates for scale so lines stay 1px on
+  // screen. Caps max lines per axis to avoid rendering thousands at low zoom.
+  function renderGrid() {
+    if (!gridVisible || size.width === 0 || size.height === 0) return null;
+    const GRID_STEP = 50;
+    const MAX_LINES_PER_AXIS = 300;
+    const tl = screenToCanvas(0, 0, viewport);
+    const br = screenToCanvas(size.width, size.height, viewport);
+    const x0 = Math.floor(tl.x / GRID_STEP) * GRID_STEP;
+    const x1 = Math.ceil(br.x / GRID_STEP) * GRID_STEP;
+    const y0 = Math.floor(tl.y / GRID_STEP) * GRID_STEP;
+    const y1 = Math.ceil(br.y / GRID_STEP) * GRID_STEP;
+    if ((x1 - x0) / GRID_STEP > MAX_LINES_PER_AXIS) return null;
+    if ((y1 - y0) / GRID_STEP > MAX_LINES_PER_AXIS) return null;
+    const stroke = "rgba(127, 127, 127, 0.18)";
+    const sw = 1 / viewport.scale;
+    const lines: React.ReactNode[] = [];
+    for (let x = x0; x <= x1; x += GRID_STEP) {
+      lines.push(
+        <Line
+          key={`gx${x}`}
+          points={[x, y0, x, y1]}
+          stroke={stroke}
+          strokeWidth={sw}
+          listening={false}
+        />
+      );
+    }
+    for (let y = y0; y <= y1; y += GRID_STEP) {
+      lines.push(
+        <Line
+          key={`gy${y}`}
+          points={[x0, y, x1, y]}
+          stroke={stroke}
+          strokeWidth={sw}
+          listening={false}
+        />
+      );
+    }
+    return lines;
+  }
+
   function renderLockOverlays() {
     return objects
       .filter((o) => isLockedByOther(o, myDeviceId))
@@ -929,6 +974,8 @@ export function BoardStage({
           onContextMenu={(e) => e.evt.preventDefault()}
           style={{ cursor: cursorStyle }}
         >
+          {/* Grid (behind objects) */}
+          <Layer listening={false}>{renderGrid()}</Layer>
           {/* Objects layer + Transformer */}
           <Layer>
             {objectsSorted.map(renderShape)}

@@ -54,7 +54,7 @@ export function createTextObject(
   x: number,
   y: number,
   text = "Double click to edit",
-  fill = "#18181b"
+  fill = "#0a0a0a"
 ): BoardObject {
   return {
     ...baseFields(),
@@ -68,7 +68,8 @@ export function createRectObject(
   y: number,
   width: number,
   height: number,
-  fill = "#fde68a"
+  fill = "#fde68a",
+  stroke = "#0a0a0a"
 ): BoardObject {
   return {
     ...baseFields(),
@@ -79,7 +80,7 @@ export function createRectObject(
       width,
       height,
       fill,
-      stroke: "#0a0a0a",
+      stroke,
       strokeWidth: 1,
     } satisfies RectObjectData,
   };
@@ -90,7 +91,8 @@ export function createEllipseObject(
   y: number,
   rx: number,
   ry: number,
-  fill = "#bae6fd"
+  fill = "#bae6fd",
+  stroke = "#0a0a0a"
 ): BoardObject {
   return {
     ...baseFields(),
@@ -101,7 +103,7 @@ export function createEllipseObject(
       radiusX: rx,
       radiusY: ry,
       fill,
-      stroke: "#0a0a0a",
+      stroke,
       strokeWidth: 1,
     } satisfies EllipseObjectData,
   };
