@@ -19,7 +19,7 @@ export function PresencePanel({
   members: BoardPresenceState[];
   myDeviceId?: string;
 }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   // Self first, others after
   const ordered = [...members].sort((a, b) => {
