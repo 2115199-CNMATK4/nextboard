@@ -1,36 +1,73 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NextBoard
 
-## Getting Started
+Realtime collaborative whiteboard — Next.js 16 (App Router) + Supabase (Auth / Postgres / Realtime / RLS) + react-konva.
 
-First, run the development server:
+Người dùng tạo board, vẽ text/rect/ellipse/line/arrow/freehand; các thay đổi broadcast gần thời gian thực giữa nhiều tab/thiết bị/user. Có guest mode local-only, device profile, temporary object lock và admin dashboard.
+
+## Stack
+
+- Next.js 16 App Router, React 19, TypeScript
+- Tailwind CSS 4
+- Supabase (Auth + Postgres + Realtime Broadcast/Presence + RLS)
+- react-konva (canvas)
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local   # fill Supabase keys
+npm install
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Lệnh khác:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `npm run build` / `npm start` — build & serve production
+- `npm run lint` — ESLint
+- `npx tsc --noEmit` — type check
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Migration SQL nằm trong `supabase/migrations/`, apply thủ công bằng Supabase SQL editor (append-only, theo thứ tự).
 
-## Learn More
+## Docker (Phase 14)
 
-To learn more about Next.js, take a look at the following resources:
+Image multi-stage tận dụng Next.js `output: 'standalone'` để chỉ ship những file thật sự cần.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cp .env.example .env         # Compose đọc file này
+docker compose up --build -d
+# http://localhost:3000
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Dừng / xem log:
 
-## Deploy on Vercel
+```bash
+docker compose logs -f app
+docker compose down
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Env vars
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Variable | Nơi dùng | Ghi chú |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | client + server | Inline vào bundle ở **build time** — pass qua compose `build.args` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | client + server | Inline vào bundle ở **build time** |
+| `NEXT_PUBLIC_SITE_URL` | client | Dùng cho redirect auth/email |
+| `SUPABASE_SERVICE_ROLE_KEY` | server-only | **Không** bake vào image, chỉ inject runtime qua `env_file` |
+
+Đổi giá trị `NEXT_PUBLIC_*` cần `docker compose build --no-cache` lại; đổi service-role key chỉ cần restart container.
+
+## Project layout
+
+```
+src/
+  app/                       # App Router routes (auth-gated under (app)/)
+  actions/                   # Server Actions
+  components/                # ui/, board/, admin/, layout/, account/
+  hooks/                     # useBoardRealtime, useBoardSync, useObjectLock, ...
+  lib/                       # supabase/, queries/, board/, auth/, theme/, utils/
+  types/                     # database types (discriminated union for board objects)
+supabase/migrations/         # SQL migrations (append-only)
+docs/development-log.md      # phase-by-phase decision log
+proxy.ts                     # Next.js middleware (root, NOT src/)
+```
+
+Xem `CLAUDE.md` cho ràng buộc kiến trúc và `docs/development-log.md` cho lịch sử quyết định.
