@@ -36,7 +36,7 @@ export default async function AccountPage() {
               Tài khoản
             </p>
             <h1 className="text-2xl font-semibold tracking-tight">
-              Cài đặt cá nhân
+              Cài đặt tài khoản
             </h1>
           </div>
         </div>
@@ -47,8 +47,7 @@ export default async function AccountPage() {
           <CardHeader>
             <CardTitle>Hồ sơ</CardTitle>
             <CardDescription>
-              Tên hiển thị sẽ xuất hiện trong presence và các board bạn tham
-              gia.
+              Tên sẽ được hiển thị công khai trên các board bạn tham gia.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -60,7 +59,7 @@ export default async function AccountPage() {
           <CardHeader>
             <CardTitle>Email</CardTitle>
             <CardDescription>
-              Đổi email cần xác nhận qua link gửi đến địa chỉ mới.
+              Một email xác nhận sẽ được gửi đến địa chỉ mới.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -72,7 +71,7 @@ export default async function AccountPage() {
           <CardHeader>
             <CardTitle>Mật khẩu</CardTitle>
             <CardDescription>
-              Tối thiểu 6 ký tự. Bạn sẽ vẫn được đăng nhập sau khi đổi.
+              Tối thiểu 6 ký tự. Hãy chọn một mật khẩu mạnh.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -84,7 +83,7 @@ export default async function AccountPage() {
           <CardHeader>
             <CardTitle>Giao diện</CardTitle>
             <CardDescription>
-              &ldquo;Hệ thống&rdquo; sẽ theo thiết lập sáng/tối của thiết bị.
+              Chọn giao diện theo yêu cầu của bạn.
             </CardDescription>
           </CardHeader>
           <CardContent>

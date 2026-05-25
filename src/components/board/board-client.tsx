@@ -22,7 +22,7 @@ export interface BoardClientProps {
 }
 
 const ROLE_LABEL: Record<BoardRole, string> = {
-  owner: "Owner",
+  owner: "Chủ sở hữu",
   editor: "Editor",
   viewer: "Viewer",
 };

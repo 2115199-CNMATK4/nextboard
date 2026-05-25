@@ -17,7 +17,7 @@ export interface UseGuestBoard {
   resetGuest: () => void;
 }
 
-const DEFAULT_TITLE = "Guest board";
+const DEFAULT_TITLE = "Board 1";
 
 export function useGuestBoard(): UseGuestBoard {
   const [hydrated, setHydrated] = useState(false);

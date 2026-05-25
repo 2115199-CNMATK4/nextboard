@@ -44,14 +44,14 @@ export function GuestBoard({ isLoggedIn }: { isLoggedIn: boolean }) {
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="h-9 w-56 bg-transparent border-transparent focus-visible:ring-2"
+              className="h-9 w-20 bg-transparent border-transparent focus-visible:ring-2"
               placeholder="Tên board…"
             />
             <span className="text-xs text-zinc-500">
-              {hydrated ? `${objects.length} đối tượng` : "Đang tải…"}
+              {hydrated ? `${objects.length} khối` : "…"}
             </span>
             <span className="ml-3 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
-              <Info className="h-3 w-3" /> Guest local
+              <Info className="h-3 w-3" /> guest
             </span>
 
             {/* Save flow */}
@@ -69,7 +69,7 @@ export function GuestBoard({ isLoggedIn }: { isLoggedIn: boolean }) {
                   disabled={persisting || objects.length === 0}
                 >
                   <Save className="h-4 w-4" />
-                  {persisting ? "Đang lưu..." : "Lưu vào tài khoản"}
+                  {persisting ? "Đang lưu..." : "Lưu"}
                 </Button>
               </form>
             ) : (
@@ -78,7 +78,7 @@ export function GuestBoard({ isLoggedIn }: { isLoggedIn: boolean }) {
                 className="ml-2 inline-flex items-center gap-1 rounded-xl bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200"
               >
                 <Save className="h-4 w-4" />
-                Đăng nhập để lưu
+                Lưu
               </Link>
             )}
 

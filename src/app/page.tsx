@@ -13,9 +13,7 @@ export default function HomePage() {
             Realtime Collaborative Whiteboard
           </h1>
           <p className="text-base sm:text-lg text-zinc-600 dark:text-zinc-400 mx-auto max-w-xl">
-            Vẽ, ghi chú và cộng tác cùng đồng đội trên cùng một bảng trắng — gần
-            thời gian thực, đa thiết bị, có presence và tạm khóa đối tượng để
-            tránh xung đột.
+            Ghi lại các ý tưởng cùng nhau, thời gian thực, hỗ trợ đa thiết bị
           </p>
         </div>
 
@@ -32,14 +30,13 @@ export default function HomePage() {
           </Link>
           <Link href="/guest">
             <Button size="lg" variant="ghost" className="w-full sm:w-[160px]">
-              Try as Guest
+              Trải nghiệm ngay
             </Button>
           </Link>
         </div>
 
         <p className="text-xs text-zinc-500">
-          Guest mode chạy hoàn toàn trên trình duyệt — không lưu lên server cho
-          tới khi bạn đăng nhập.
+          Bạn sẽ cần tài khoản để lưu board.
         </p>
       </div>
     </main>

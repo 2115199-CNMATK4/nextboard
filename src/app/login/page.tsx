@@ -14,7 +14,7 @@ export default async function LoginPage({
   return (
     <AuthShell
       title="Đăng nhập"
-      subtitle="Vào NextBoard để truy cập các bảng cộng tác của bạn."
+      subtitle="Đăng nhập để truy cập các board của bạn."
       footer={
         <span className="text-zinc-500">
           Chưa có tài khoản?{" "}

@@ -17,7 +17,7 @@ interface Props {
 }
 
 const ROLE_BADGE: Record<BoardRole, { label: string; Icon: typeof Crown }> = {
-  owner: { label: "Owner", Icon: Crown },
+  owner: { label: "Chủ sở hữu", Icon: Crown },
   editor: { label: "Editor", Icon: Edit3 },
   viewer: { label: "Viewer", Icon: Eye },
 };

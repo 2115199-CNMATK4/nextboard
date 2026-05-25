@@ -34,7 +34,7 @@ export async function persistGuestBoardAction(
     redirect("/login?next=/guest");
   }
 
-  const title = String(formData.get("title") || "Guest board").slice(0, 120);
+  const title = String(formData.get("title") || "Board 1").slice(0, 120);
   const objectsJson = String(formData.get("objects") || "[]");
 
   let parsed: unknown;
@@ -47,7 +47,7 @@ export async function persistGuestBoardAction(
 
   // Tạo board qua RPC (xem migration 0004) — bypass bug RLS bootstrap.
   const { data: board, error: boardErr } = await supabase
-    .rpc("create_board", { p_title: title || "Guest board" })
+    .rpc("create_board", { p_title: title || "Board 1" })
     .single<{ id: string }>();
   if (boardErr || !board) {
     return { error: boardErr?.message ?? "Không tạo được board." };
