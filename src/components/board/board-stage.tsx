@@ -334,21 +334,39 @@ export function BoardStage({
     setEraserOpacityMap({});
   }
 
+  // Eraser hit radius in screen pixels — expands hit area for small/thin objects
+  // (single-point freehand dots, thin lines, tiny shapes). Tolerance in canvas
+  // units = ERASER_HIT_RADIUS_PX / viewport.scale so feel is consistent at any zoom.
+  const ERASER_HIT_RADIUS_PX = 12;
+
   function pickEraserTarget() {
     const stage = stageRef.current;
     if (!stage) return;
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
-    const node = stage.getIntersection(pointer);
-    if (!node) return;
-    // Walk up parent chain: text objects are <Group id={obj.id}> whose children (Rect/Text) have no id
+
     let id: string | null = null;
-    let n: Konva.Node | null = node;
-    while (n && n !== (stage as unknown as Konva.Node)) {
-      const nid = n.id();
-      if (nid && objects.some((o) => o.id === nid)) { id = nid; break; }
-      n = n.getParent() as Konva.Node | null;
-    }
+
+    //    box-tolerance hit for small/thin objects that miss pixel test.
+    //    Pick topmost (highest z_index) candidate whose expanded bbox contains pointer.
+    const cp = stage.getRelativePointerPosition();
+      if (cp) {
+        const tol = ERASER_HIT_RADIUS_PX / Math.max(viewport.scale, 0.001);
+        let bestZ = -Infinity;
+        for (const o of objects) {
+          const b = getBounds(o);
+          if (
+            cp.x >= b.x - tol &&
+            cp.x <= b.x + b.width + tol &&
+            cp.y >= b.y - tol &&
+            cp.y <= b.y + b.height + tol
+          ) {
+            const z = o.z_index ?? 0;
+            if (z >= bestZ) { bestZ = z; id = o.id; }
+          }
+        }
+      }
+
     if (!id) return;
     if (eraserPendingMap.current.has(id)) return;
     const obj = objects.find((o) => o.id === id);
