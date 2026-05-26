@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getCurrentProfile } from "@/lib/auth/session";
 import { getBoardForUser } from "@/lib/queries/boards";
 import { listBoardObjects } from "@/lib/queries/board-objects";
+import { listBoardMembers } from "@/lib/queries/board-members";
 import { BoardClient } from "@/components/board/board-client";
 
 type Params = Promise<{ boardId: string }>;
@@ -13,7 +14,10 @@ export default async function BoardPage({ params }: { params: Params }) {
   const board = await getBoardForUser(boardId, profile.id);
   if (!board) notFound();
 
-  const objects = await listBoardObjects(boardId);
+  const [objects, members] = await Promise.all([
+    listBoardObjects(boardId),
+    listBoardMembers(boardId),
+  ]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -22,6 +26,8 @@ export default async function BoardPage({ params }: { params: Params }) {
         title={board.title}
         role={board.role}
         initialObjects={objects}
+        members={members}
+        myUserId={profile.id}
       />
     </div>
   );

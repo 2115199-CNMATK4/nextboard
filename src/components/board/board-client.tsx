@@ -1,24 +1,28 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Users2 } from "lucide-react";
 import { BoardEditor } from "./board-editor";
 import { SaveIndicator } from "./save-indicator";
 import { ConnectionStatus } from "./connection-status";
 import { PresencePanel } from "./presence-panel";
+import { MembersDialog } from "./members-dialog";
 import { useBoardSync } from "@/hooks/use-board-sync";
 import { useBoardRealtime } from "@/hooks/use-board-realtime";
 import { useObjectLock } from "@/hooks/use-object-lock";
 import { useDevice } from "@/components/layout/device-provider";
 import { realtimeConfig } from "@/lib/realtime/config";
 import type { BoardObject, BoardRole } from "@/types/database";
+import type { BoardMemberView } from "@/lib/queries/board-members";
 
 export interface BoardClientProps {
   boardId: string;
   title: string;
   role: BoardRole;
   initialObjects: BoardObject[];
+  members: BoardMemberView[];
+  myUserId: string;
 }
 
 const ROLE_LABEL: Record<BoardRole, string> = {
@@ -43,9 +47,12 @@ export function BoardClient({
   title,
   role,
   initialObjects,
+  members,
+  myUserId,
 }: BoardClientProps) {
   const { profile, device } = useDevice();
   const readOnly = role === "viewer";
+  const [showMembers, setShowMembers] = useState(false);
 
   // Stable refs để break circular dependency
   const broadcastRef = useRef({
@@ -151,43 +158,64 @@ export function BoardClient({
   );
 
   return (
-    <BoardEditor
-      boardId={boardId}
-      objects={objects}
-      onChange={setObjects}
-      readOnly={readOnly}
-      remoteCursors={remoteCursors}
-      remoteStrokes={remoteStrokes}
-      onCursorMove={readOnly ? undefined : broadcastCursor}
-      onStrokeStart={readOnly ? undefined : broadcastStrokeStart}
-      onStrokePoints={readOnly ? undefined : broadcastStrokePoints}
-      onStrokeEnd={readOnly ? undefined : broadcastStrokeEnd}
-      myDeviceId={device?.id}
-      onLockAcquire={readOnly ? undefined : handleLockAcquire}
-      onLockRelease={readOnly ? undefined : handleLockRelease}
-      topSlot={
-        <div className="glass-panel flex items-center gap-0.5 p-1">
-          <Link
-            href="/dashboard"
-            title="Quay lại"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <span
-            className="min-w-0 max-w-[40vw] truncate px-1.5 text-sm font-medium md:max-w-[30vw]"
-            title={`${title} — ${ROLE_LABEL[role]}${readOnly ? " • chỉ xem" : ""}`}
-          >
-            {title}
-          </span>
-          <span className="mx-0.5 h-5 w-px shrink-0 bg-black/10 dark:bg-white/10" />
-          <SaveIndicator status={status} />
-          <ConnectionStatus status={channelStatus} />
-        </div>
-      }
-      rightSlot={
-        <PresencePanel members={presence} myDeviceId={device?.id} />
-      }
-    />
+    <>
+      <BoardEditor
+        boardId={boardId}
+        objects={objects}
+        onChange={setObjects}
+        readOnly={readOnly}
+        remoteCursors={remoteCursors}
+        remoteStrokes={remoteStrokes}
+        onCursorMove={readOnly ? undefined : broadcastCursor}
+        onStrokeStart={readOnly ? undefined : broadcastStrokeStart}
+        onStrokePoints={readOnly ? undefined : broadcastStrokePoints}
+        onStrokeEnd={readOnly ? undefined : broadcastStrokeEnd}
+        myDeviceId={device?.id}
+        onLockAcquire={readOnly ? undefined : handleLockAcquire}
+        onLockRelease={readOnly ? undefined : handleLockRelease}
+        topSlot={
+          <div className="glass-panel flex items-center gap-0.5 p-1">
+            <Link
+              href="/dashboard"
+              title="Quay lại"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+            <span
+              className="min-w-0 max-w-[40vw] truncate px-1.5 text-sm font-medium md:max-w-[30vw]"
+              title={`${title} — ${ROLE_LABEL[role]}${readOnly ? " • chỉ xem" : ""}`}
+            >
+              {title}
+            </span>
+            <span className="mx-0.5 h-5 w-px shrink-0 bg-black/10 dark:bg-white/10" />
+            <SaveIndicator status={status} />
+            <ConnectionStatus status={channelStatus} />
+            <span className="mx-0.5 h-5 w-px shrink-0 bg-black/10 dark:bg-white/10" />
+            <button
+              type="button"
+              onClick={() => setShowMembers(true)}
+              title="Thành viên"
+              className="flex h-7 items-center gap-1 rounded-lg px-1.5 text-xs font-medium transition-colors hover:bg-black/10 dark:hover:bg-white/10"
+            >
+              <Users2 className="h-4 w-4" />
+              {members.length}
+            </button>
+          </div>
+        }
+        rightSlot={
+          <PresencePanel members={presence} myDeviceId={device?.id} />
+        }
+      />
+      {showMembers ? (
+        <MembersDialog
+          boardId={boardId}
+          myRole={role}
+          myUserId={myUserId}
+          members={members}
+          onClose={() => setShowMembers(false)}
+        />
+      ) : null}
+    </>
   );
 }
