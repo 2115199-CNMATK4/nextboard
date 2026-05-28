@@ -9,6 +9,7 @@ import type {
   BoardObjectType,
   EllipseObjectData,
   FreehandObjectData,
+  ImageObjectData,
   LineObjectData,
   RectObjectData,
   TextObjectData,
@@ -21,6 +22,7 @@ export const TOOL_TYPES = [
   "line",
   "arrow",
   "freehand",
+  "image",
 ] as const;
 export type ToolType = (typeof TOOL_TYPES)[number];
 export type ToolMode = "select" | "eraser" | ToolType;
@@ -161,6 +163,22 @@ export function createArrowObject(
   };
 }
 
+export function createImageObject(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  src: string,
+  naturalRatio: number,
+  id?: string
+): BoardObject {
+  return {
+    ...baseFields(id),
+    type: "image",
+    data: { x, y, width, height, src, naturalRatio } satisfies ImageObjectData,
+  };
+}
+
 export function createFreehandObject(
   points: [number, number][],
   stroke = "#0a0a0a",
@@ -222,6 +240,13 @@ export function getBounds(obj: BoardObject) {
         height: Math.max(...ys) - minY,
       };
     }
+    case "image":
+      return {
+        x: obj.data.x,
+        y: obj.data.y,
+        width: obj.data.width,
+        height: obj.data.height,
+      };
   }
 }
 
@@ -288,6 +313,12 @@ export function translateObject(
         updated_at: NOW(),
       };
     }
+    case "image":
+      return {
+        ...obj,
+        data: { ...obj.data, x: obj.data.x + dx, y: obj.data.y + dy },
+        updated_at: NOW(),
+      };
   }
 }
 
@@ -389,6 +420,9 @@ export function updateObjectStyle(
         },
         updated_at: now,
       };
+    case "image":
+      // Image không có style fill/stroke — chỉ giữ nguyên data.
+      return { ...obj, updated_at: now };
   }
 }
 
@@ -486,6 +520,23 @@ export function normalizeObjectTransform(
       return {
         ...obj,
         data: { ...obj.data, points: pts },
+        updated_at: now,
+      };
+    }
+    case "image": {
+      // Image dùng Transformer `keepRatio` ở UI nên scaleX ≈ scaleY,
+      // nhưng vẫn snap về cùng scale (lấy max) để chống drift số học
+      // làm sai naturalRatio sau nhiều lần resize.
+      const s = Math.max(scaleX, scaleY);
+      return {
+        ...obj,
+        data: {
+          ...obj.data,
+          x: nodeX,
+          y: nodeY,
+          width: Math.max(8, obj.data.width * s),
+          height: Math.max(8, obj.data.height * s),
+        },
         updated_at: now,
       };
     }

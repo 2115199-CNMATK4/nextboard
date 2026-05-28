@@ -13,7 +13,8 @@ export type BoardObjectType =
   | "ellipse"
   | "line"
   | "arrow"
-  | "freehand";
+  | "freehand"
+  | "image";
 
 export interface Profile {
   id: string;
@@ -115,13 +116,25 @@ export interface FreehandObjectData {
   strokeWidth: number;
 }
 
+export interface ImageObjectData {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  src: string;
+  // Aspect ratio gốc của ảnh (width/height). Dùng để resize giữ ratio,
+  // tránh phải load lại ảnh để đo natural size khi user kéo handle.
+  naturalRatio: number;
+}
+
 export type BoardObject =
   | BoardObjectBase<"text", TextObjectData>
   | BoardObjectBase<"rect", RectObjectData>
   | BoardObjectBase<"ellipse", EllipseObjectData>
   | BoardObjectBase<"line", LineObjectData>
   | BoardObjectBase<"arrow", ArrowObjectData>
-  | BoardObjectBase<"freehand", FreehandObjectData>;
+  | BoardObjectBase<"freehand", FreehandObjectData>
+  | BoardObjectBase<"image", ImageObjectData>;
 
 export interface AdminUser {
   user_id: string;

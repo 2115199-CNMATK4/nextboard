@@ -9,7 +9,7 @@
 // =====================================================================
 
 import { useEffect, useRef, useState } from "react";
-import { Stage, Layer, Rect, Ellipse, Line, Arrow, Text, Group, Transformer } from "react-konva";
+import { Stage, Layer, Rect, Ellipse, Line, Arrow, Text, Group, Image as KonvaImage, Transformer } from "react-konva";
 import type Konva from "konva";
 import type { BoardObject } from "@/types/database";
 import type { RemoteStroke } from "@/lib/realtime/types";
@@ -133,6 +133,11 @@ export function BoardStage({
   const [eraserOpacityMap, setEraserOpacityMap] = useState<Record<string, number>>({});
   const ERASER_FADE_MS = 300;
 
+  // Image cache: HTMLImageElement per src. Konva.Image needs the element to
+  // render bitmap; React doesn't track it across renders. Loading is async
+  // → re-render via state when each src finishes.
+  const [imageCache, setImageCache] = useState<Record<string, HTMLImageElement>>({});
+
   // Resize observer
   useEffect(() => {
     if (!containerRef.current) return;
@@ -154,6 +159,32 @@ export function BoardStage({
       if (eraserLoopRef.current != null) cancelAnimationFrame(eraserLoopRef.current);
     };
   }, []);
+
+  // Load image bitmaps for any image objects with a src not yet in cache.
+  // Crossorigin anonymous để bucket public URL không bị tainted khi cần
+  // toDataURL sau này (chưa dùng nhưng để dành).
+  useEffect(() => {
+    const srcs = new Set<string>();
+    for (const o of objects) {
+      if (o.type === "image" && o.data.src && !imageCache[o.data.src]) {
+        srcs.add(o.data.src);
+      }
+    }
+    if (srcs.size === 0) return;
+    let cancelled = false;
+    for (const src of srcs) {
+      const img = new window.Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        if (cancelled) return;
+        setImageCache((prev) => (prev[src] ? prev : { ...prev, [src]: img }));
+      };
+      img.src = src;
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [objects, imageCache]);
 
   // Phase 11.7: space key tracking
   useEffect(() => {
@@ -880,6 +911,34 @@ export function BoardStage({
             }}
           />
         );
+      case "image": {
+        const bitmap = imageCache[obj.data.src];
+        return (
+          <KonvaImage
+            key={obj.id}
+            id={obj.id}
+            x={obj.data.x}
+            y={obj.data.y}
+            width={obj.data.width}
+            height={obj.data.height}
+            image={bitmap}
+            stroke={isSelected ? "#3b82f6" : undefined}
+            strokeWidth={isSelected ? 2 : 0}
+            opacity={shapeOpacity}
+            draggable={draggable}
+            onClick={onClick}
+            onTap={onClick}
+            onDragStart={(e) => makeDragStart(e.target, obj.data.x, obj.data.y)()}
+            onDragEnd={(e) => {
+              const node = e.target;
+              const dx = node.x() - obj.data.x;
+              const dy = node.y() - obj.data.y;
+              handleDragEnd(obj.id, dx, dy);
+              void onLockRelease?.(obj.id);
+            }}
+          />
+        );
+      }
     }
   }
 
@@ -1067,7 +1126,11 @@ export function BoardStage({
             {!readOnly && (
               <Transformer
                 ref={transformerRef}
-                keepRatio={false}
+                keepRatio={
+                  selectedId
+                    ? objects.find((o) => o.id === selectedId)?.type === "image"
+                    : false
+                }
                 rotateEnabled={false}
                 anchorSize={11}
                 anchorStroke="#3b82f6"

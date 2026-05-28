@@ -12,6 +12,7 @@ import {
   Eraser,
   Grid3x3,
   Shapes,
+  ImagePlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 import { useInkColor } from "@/hooks/use-dark-mode";
@@ -51,6 +52,8 @@ export function BoardToolbar({
   onStrokeWidthChange,
   gridVisible,
   onGridToggle,
+  onPickImage,
+  imageUploading = false,
 }: {
   tool: ToolMode;
   onToolChange: (m: ToolMode) => void;
@@ -60,6 +63,8 @@ export function BoardToolbar({
   onStrokeWidthChange: (w: number) => void;
   gridVisible: boolean;
   onGridToggle: () => void;
+  onPickImage?: () => void;
+  imageUploading?: boolean;
 }) {
   const presetColors = usePresetColors();
   const [open, setOpen] = useState<OpenGroup>(null);
@@ -189,6 +194,17 @@ export function BoardToolbar({
         Icon={Eraser}
         onClick={() => pickTool("eraser")}
       />
+      {onPickImage ? (
+        <ToolButton
+          active={false}
+          label={imageUploading ? "Đang tải ảnh..." : "Chèn ảnh"}
+          Icon={ImagePlus}
+          onClick={() => {
+            if (!imageUploading) onPickImage();
+          }}
+          highlighted={imageUploading}
+        />
+      ) : null}
 
       <Divider />
 
