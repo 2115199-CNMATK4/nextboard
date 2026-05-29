@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,7 +35,15 @@ export function LoginForm({
         />
       </div>
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="password">Mật khẩu</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="password">Mật khẩu</Label>
+          <Link
+            href="/forgot-password"
+            className="text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            Quên mật khẩu?
+          </Link>
+        </div>
         <Input
           id="password"
           name="password"

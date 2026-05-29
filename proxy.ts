@@ -4,7 +4,16 @@ import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 
 // Route công khai (không cần đăng nhập).
-const PUBLIC_PATHS = ["/", "/login", "/register", "/guest", "/disabled"];
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/register",
+  "/guest",
+  "/disabled",
+  "/forgot-password",
+  "/reset-password",
+  "/api/auth/callback",
+];
 
 // Route auth — đã đăng nhập thì redirect khỏi đây.
 const AUTH_PATHS = ["/login", "/register"];

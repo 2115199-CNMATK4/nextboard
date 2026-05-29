@@ -1,10 +1,18 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthFormState = {
   error?: string;
+  email?: string;
+} | null;
+
+// State cho flow quên/đặt lại mật khẩu — có thêm `success` để hiện thông báo.
+export type ResetFormState = {
+  error?: string;
+  success?: string;
   email?: string;
 } | null;
 
@@ -96,6 +104,85 @@ export async function registerAction(
 
   // Nếu cần xác nhận email, đưa về login với hint.
   redirect(`/login?registered=1${next !== "/dashboard" ? `&next=${encodeURIComponent(next)}` : ""}`);
+}
+
+// ---------------------------------------------------------------------
+// Forgot password — gửi email chứa link đặt lại mật khẩu
+// ---------------------------------------------------------------------
+async function getOrigin(): Promise<string> {
+  // Ưu tiên biến môi trường (deploy), fallback về header của request.
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
+  const h = await headers();
+  const origin = h.get("origin");
+  if (origin) return origin;
+
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  return `${proto}://${host}`;
+}
+
+export async function forgotPasswordAction(
+  _prev: ResetFormState,
+  formData: FormData
+): Promise<ResetFormState> {
+  const email = String(formData.get("email") ?? "").trim();
+  if (!validateEmail(email)) return { error: "Email không hợp lệ.", email };
+
+  const supabase = await createClient();
+  const origin = await getOrigin();
+
+  // Link trong email trỏ về route handler để đổi `code` lấy session,
+  // rồi chuyển tiếp sang /reset-password để người dùng đặt mật khẩu mới.
+  const redirectTo = `${origin}/api/auth/callback?next=${encodeURIComponent(
+    "/reset-password"
+  )}`;
+
+  await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+
+  // Luôn báo thành công bất kể email có tồn tại hay không — tránh lộ
+  // thông tin tài khoản nào đã đăng ký (account enumeration).
+  return {
+    success:
+      "Nếu email tồn tại trong hệ thống, chúng tôi sẽ gửi link đặt lại mật khẩu. Vui lòng kiểm tra email.",
+    email,
+  };
+}
+
+// ---------------------------------------------------------------------
+// Reset password — đặt mật khẩu mới (cần recovery session từ link email)
+// ---------------------------------------------------------------------
+export async function resetPasswordAction(
+  _prev: ResetFormState,
+  formData: FormData
+): Promise<ResetFormState> {
+  const password = String(formData.get("password") ?? "");
+  const confirm = String(formData.get("confirm") ?? "");
+
+  if (password.length < 6)
+    return { error: "Mật khẩu tối thiểu 6 ký tự." };
+  if (password !== confirm)
+    return { error: "Mật khẩu xác nhận không khớp." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Không có recovery session → link hỏng/hết hạn.
+  if (!user)
+    return {
+      error:
+        "Link đặt lại mật khẩu không hợp lệ hoặc đã hết hạn. Vui lòng yêu cầu lại.",
+    };
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { error: error.message };
+
+  // Đăng xuất recovery session rồi buộc đăng nhập lại bằng mật khẩu mới.
+  await supabase.auth.signOut();
+  redirect("/login?reset=1");
 }
 
 // ---------------------------------------------------------------------
