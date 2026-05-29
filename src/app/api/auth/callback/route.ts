@@ -10,14 +10,31 @@ function safeNext(value: string | null): string {
   return value;
 }
 
+// Base URL công khai để dựng redirect. KHÔNG dùng request.nextUrl.origin trực
+// tiếp — sau reverse proxy nó là host nội bộ (vd 0.0.0.0:3000) nên redirect sẽ
+// trỏ về địa chỉ nội bộ. Ưu tiên NEXT_PUBLIC_SITE_URL, fallback X-Forwarded-*.
+function resolveBaseUrl(request: NextRequest): string {
+  const envUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (envUrl) return envUrl.replace(/\/$/, "");
+
+  const proto =
+    request.headers.get("x-forwarded-proto") ??
+    request.nextUrl.protocol.replace(":", "");
+  const host =
+    request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  if (host) return `${proto}://${host}`;
+
+  return request.nextUrl.origin;
+}
+
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl;
-  const code = searchParams.get("code");
-  const next = safeNext(searchParams.get("next"));
+  const base = resolveBaseUrl(request);
+  const code = request.nextUrl.searchParams.get("code");
+  const next = safeNext(request.nextUrl.searchParams.get("next"));
 
   if (!code) {
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent("Link không hợp lệ.")}`
+      `${base}/login?error=${encodeURIComponent("Link không hợp lệ.")}`
     );
   }
 
@@ -26,11 +43,11 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(
+      `${base}/login?error=${encodeURIComponent(
         "Link đã hết hạn hoặc không hợp lệ."
       )}`
     );
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  return NextResponse.redirect(`${base}${next}`);
 }
